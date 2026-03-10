@@ -58,7 +58,6 @@ export function UserSidebar({ open, onClose }: Props) {
     <>
       <div className="fixed inset-0 bg-foreground/20 z-50" onClick={onClose} />
       <div className="fixed top-0 left-0 bottom-0 w-72 bg-background z-50 border-r border-border flex flex-col animate-fade-in">
-        {/* Header with logo */}
         <div className="flex items-center gap-3 p-4 border-b border-border shrink-0">
           {settings.appLogo ? (
             <img src={settings.appLogo} alt="" className="h-8 w-8 rounded-lg object-contain" />
@@ -70,27 +69,25 @@ export function UserSidebar({ open, onClose }: Props) {
         </div>
 
         <nav className="p-2 flex-1 overflow-y-auto pb-20">
-          {/* Main Navigation */}
-          <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">মেনু</p>
-          <SidebarLink to="/home" icon={Home} label="হোম" onClick={onClose} />
-          <SidebarLink to="/my-courses" icon={BookOpen} label="আমার কোর্স" onClick={onClose} />
-          <SidebarLink to="/profile" icon={User} label="প্রোফাইল" onClick={onClose} />
+          <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Menu</p>
+          <SidebarLink to="/home" icon={Home} label="Home" onClick={onClose} />
+          <SidebarLink to="/my-courses" icon={BookOpen} label="My Courses" onClick={onClose} />
+          <SidebarLink to="/profile" icon={User} label="Profile" onClick={onClose} />
 
-          {/* Course Resources */}
           {activeCourse && (
             <>
               <div className="my-3 border-t border-border" />
-              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">কোর্স রিসোর্স</p>
+              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Course Resources</p>
 
               {isActiveApproved ? (
                 <>
-                  <SidebarLink to="/exams" icon={ClipboardList} label="পরীক্ষা" onClick={onClose} highlight />
+                  <SidebarLink to="/exams" icon={ClipboardList} label="Exams" onClick={onClose} highlight />
 
                   {activeCourse.allMaterialsLink && (
                     <a href={activeCourse.allMaterialsLink} target="_blank" rel="noopener noreferrer" onClick={onClose}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors my-0.5">
                       <FolderOpen className="h-4 w-4 text-primary" />
-                      <span className="flex-1">সকল ম্যাটেরিয়ালস</span>
+                      <span className="flex-1">All Materials</span>
                       <ExternalLink className="h-3 w-3 text-muted-foreground" />
                     </a>
                   )}
@@ -99,7 +96,7 @@ export function UserSidebar({ open, onClose }: Props) {
                     <a href={activeCourse.routinePDF} target="_blank" rel="noopener noreferrer" onClick={onClose}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors my-0.5">
                       <Calendar className="h-4 w-4 text-primary" />
-                      <span className="flex-1">রুটিন</span>
+                      <span className="flex-1">Routine</span>
                       <ExternalLink className="h-3 w-3 text-muted-foreground" />
                     </a>
                   )}
@@ -107,7 +104,7 @@ export function UserSidebar({ open, onClose }: Props) {
                   {activeCourse.discussionGroups?.filter(g => g.name && g.link).length > 0 && (
                     <>
                       <div className="my-3 border-t border-border" />
-                      <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">ডিসকাশন গ্রুপ</p>
+                      <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Discussion Groups</p>
                       {activeCourse.discussionGroups.filter(g => g.name && g.link).map((g, i) => (
                         <a key={i} href={g.link} target="_blank" rel="noopener noreferrer" onClick={onClose}
                           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors my-0.5">
@@ -122,17 +119,16 @@ export function UserSidebar({ open, onClose }: Props) {
               ) : (
                 <div className="px-3 py-3 rounded-lg text-xs text-muted-foreground flex items-center gap-2 bg-accent/50 my-0.5">
                   <Lock className="h-3.5 w-3.5" />
-                  অ্যাপ্রুভালের পর রিসোর্স পাওয়া যাবে
+                  Resources available after approval
                 </div>
               )}
             </>
           )}
 
-          {/* Useful Links */}
           {settings.usefulLinks?.length > 0 && (
             <>
               <div className="my-3 border-t border-border" />
-              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">দরকারি লিংক</p>
+              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Useful Links</p>
               {settings.usefulLinks.map((link, i) => (
                 <a key={i} href={link.link} target="_blank" rel="noopener noreferrer" onClick={onClose}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors my-0.5">
@@ -144,11 +140,10 @@ export function UserSidebar({ open, onClose }: Props) {
             </>
           )}
 
-          {/* Social Links */}
           {settings.socialLinks?.length > 0 && (
             <>
               <div className="my-3 border-t border-border" />
-              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">ফলো করুন</p>
+              <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Follow Us</p>
               {settings.socialLinks.map((sl, i) => (
                 <a key={i} href={sl.link} target="_blank" rel="noopener noreferrer" onClick={onClose}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors my-0.5">
@@ -160,24 +155,23 @@ export function UserSidebar({ open, onClose }: Props) {
             </>
           )}
 
-          {/* Settings & Actions */}
           <div className="my-3 border-t border-border" />
-          <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">সেটিংস</p>
+          <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Settings</p>
 
           <button onClick={toggle} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors w-full my-0.5">
             {dark ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
-            {dark ? "লাইট মোড" : "ডার্ক মোড"}
+            {dark ? "Light Mode" : "Dark Mode"}
           </button>
 
           <button onClick={handleShare} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors w-full my-0.5">
             <Share2 className="h-4 w-4 text-muted-foreground" />
-            শেয়ার করুন
+            Share App
           </button>
 
           {installPrompt && (
             <button onClick={handleInstall} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors w-full my-0.5">
               <Download className="h-4 w-4 text-muted-foreground" />
-              অ্যাপ ইনস্টল করুন
+              Install App
             </button>
           )}
         </nav>

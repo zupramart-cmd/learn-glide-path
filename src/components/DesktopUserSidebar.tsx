@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, BookOpen, User, FileText, MessageCircle, Share2, Sun, Moon, ExternalLink, FolderOpen, ClipboardList, Calendar, Globe, Heart, Lock } from "lucide-react";
+import { Home, BookOpen, User, MessageCircle, Share2, Sun, Moon, ExternalLink, FolderOpen, ClipboardList, Calendar, Globe, Heart, Lock } from "lucide-react";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/use-theme";
@@ -34,23 +34,22 @@ export function DesktopUserSidebar() {
   return (
     <aside className="hidden md:flex flex-col w-56 lg:w-64 border-r border-border bg-card overflow-y-auto shrink-0 h-[calc(100vh-3.5rem)] sticky top-14">
       <nav className="p-2 flex flex-col gap-0.5">
-        <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">মেনু</p>
-        <SidebarLink to="/home" icon={Home} label="হোম" active={isActive("/home") || isActive("/")} />
-        <SidebarLink to="/my-courses" icon={BookOpen} label="আমার কোর্স" active={isActive("/my-courses")} />
-        <SidebarLink to="/exams" icon={ClipboardList} label="পরীক্ষা" active={isActive("/exams")} />
-        <SidebarLink to="/profile" icon={User} label="প্রোফাইল" active={isActive("/profile")} />
+        <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Menu</p>
+        <SidebarLink to="/home" icon={Home} label="Home" active={isActive("/home") || isActive("/")} />
+        <SidebarLink to="/my-courses" icon={BookOpen} label="My Courses" active={isActive("/my-courses")} />
+        <SidebarLink to="/exams" icon={ClipboardList} label="Exams" active={isActive("/exams")} />
+        <SidebarLink to="/profile" icon={User} label="Profile" active={isActive("/profile")} />
 
-        {/* Course Resources */}
         {activeCourse && isActiveApproved && (
           <>
             <div className="my-2 border-t border-border" />
-            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">কোর্স রিসোর্স</p>
+            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Course Resources</p>
 
             {activeCourse.allMaterialsLink && (
               <a href={activeCourse.allMaterialsLink} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors">
                 <FolderOpen className="h-4 w-4 text-primary" />
-                সকল ম্যাটেরিয়ালস
+                All Materials
                 <ExternalLink className="h-3 w-3 text-muted-foreground ml-auto" />
               </a>
             )}
@@ -59,7 +58,7 @@ export function DesktopUserSidebar() {
               <a href={activeCourse.routinePDF} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors">
                 <Calendar className="h-4 w-4 text-primary" />
-                রুটিন
+                Routine
                 <ExternalLink className="h-3 w-3 text-muted-foreground ml-auto" />
               </a>
             )}
@@ -67,7 +66,7 @@ export function DesktopUserSidebar() {
             {activeCourse.discussionGroups?.filter(g => g.name && g.link).length > 0 && (
               <>
                 <div className="my-2 border-t border-border" />
-                <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">ডিসকাশন গ্রুপ</p>
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Discussion Groups</p>
                 {activeCourse.discussionGroups.filter(g => g.name && g.link).map((g, i) => (
                   <a key={i} href={g.link} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors">
@@ -81,11 +80,10 @@ export function DesktopUserSidebar() {
           </>
         )}
 
-        {/* Useful Links */}
         {settings.usefulLinks?.length > 0 && (
           <>
             <div className="my-2 border-t border-border" />
-            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">দরকারি লিংক</p>
+            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Useful Links</p>
             {settings.usefulLinks.map((link, i) => (
               <a key={i} href={link.link} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors">
@@ -96,11 +94,10 @@ export function DesktopUserSidebar() {
           </>
         )}
 
-        {/* Social Links */}
         {settings.socialLinks?.length > 0 && (
           <>
             <div className="my-2 border-t border-border" />
-            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">ফলো করুন</p>
+            <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Follow Us</p>
             {settings.socialLinks.map((sl, i) => (
               <a key={i} href={sl.link} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors">
@@ -116,13 +113,13 @@ export function DesktopUserSidebar() {
         <button onClick={toggle}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors w-full">
           {dark ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
-          {dark ? "লাইট মোড" : "ডার্ক মোড"}
+          {dark ? "Light Mode" : "Dark Mode"}
         </button>
 
         <button onClick={() => navigator.share?.({ title: settings.appName, url: window.location.origin })}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-accent/80 transition-colors w-full">
           <Share2 className="h-4 w-4 text-muted-foreground" />
-          শেয়ার করুন
+          Share App
         </button>
       </nav>
     </aside>
