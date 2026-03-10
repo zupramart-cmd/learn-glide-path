@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase";
 import { AppSettings } from "@/types";
 
 const defaultSettings: AppSettings = {
-  appName: "LMS",
+  appName: "Darpan Academy",
   appLogo: "",
   youtubeChannel: "",
   googleDrive: "",

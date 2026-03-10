@@ -162,7 +162,7 @@ export default function MyCoursesPage() {
                 </div>
                 <div className="px-3 py-2.5 sm:p-3">
                   <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{video.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{settings.appName || "LMS"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{settings.appName || "Darpan Academy"}</p>
                 </div>
               </button>
             ))}

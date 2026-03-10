@@ -447,7 +447,7 @@ function VideoListItem({ v, videoId, settings }: { v: Video; videoId?: string; s
       )}
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-medium line-clamp-2 ${v.id === videoId ? "text-primary" : "text-foreground"}`}>{v.title}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{settings.appName || "LMS"}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{settings.appName || "Darpan Academy"}</p>
       </div>
     </button>
   );

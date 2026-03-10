@@ -261,6 +261,17 @@ export default function ExamTakePage() {
                 {q.type === "written" && !ans?.writtenImageUrl && (
                   <p className="text-xs text-muted-foreground italic mt-2">No answer submitted</p>
                 )}
+                {/* Show correct written answer after submission */}
+                {q.type === "written" && q.writtenAnswer && (
+                  <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-1">সঠিক উত্তর:</p>
+                    {q.writtenAnswer.startsWith("http") ? (
+                      <img src={q.writtenAnswer} alt="Correct Answer" className="h-32 rounded-lg object-contain" />
+                    ) : (
+                      <p className="text-sm text-foreground">{q.writtenAnswer}</p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -344,7 +355,45 @@ export default function ExamTakePage() {
             <p className="mt-4 text-sm text-warning">Exam hasn't started yet. Please wait.</p>
           )}
           {examEnded && !existingSubmission && (
-            <p className="mt-4 text-sm text-destructive">Exam has ended.</p>
+            <div className="mt-4">
+              <p className="text-sm text-destructive mb-4">পরীক্ষা শেষ হয়ে গেছে।</p>
+              <div className="space-y-3">
+                <h3 className="font-medium text-foreground">সঠিক উত্তর</h3>
+                {exam.questions.map((q, idx) => (
+                  <div key={q.id} className="bg-card border border-border rounded-xl p-3">
+                    <p className="text-sm font-medium text-foreground">Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span></p>
+                    {q.questionImage && <img src={q.questionImage} alt="" className="h-24 rounded-lg object-contain mt-2" />}
+                    
+                    {q.type === "mcq" && q.options && (
+                      <div className="mt-2 space-y-1">
+                        {q.options.map((opt, oIdx) => {
+                          const isCorrect = oIdx === q.correctAnswer;
+                          return (
+                            <div key={oIdx} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isCorrect ? "bg-green-500/10" : "bg-card"}`}>
+                              {isCorrect && <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />}
+                              {!isCorrect && <span className="w-3.5" />}
+                              <span className="text-foreground">{opt.text}</span>
+                              {opt.image && <img src={opt.image} alt="" className="h-8 rounded object-contain ml-auto" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {q.type === "written" && q.writtenAnswer && (
+                      <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">সঠিক উত্তর:</p>
+                        {q.writtenAnswer.startsWith("http") ? (
+                          <img src={q.writtenAnswer} alt="Answer" className="h-32 rounded-lg object-contain" />
+                        ) : (
+                          <p className="text-sm text-foreground">{q.writtenAnswer}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           {examStarted && !examEnded && (
             <button onClick={startExam} className="mt-6 w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm">
