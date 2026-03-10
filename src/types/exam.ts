@@ -9,6 +9,7 @@ export interface ExamQuestion {
   type: ExamType;
   options?: { text: string; image?: string }[];
   correctAnswer?: number; // index for MCQ
+  writtenAnswer?: string; // correct answer text/image URL for written questions
   marks: number;
 }
 
