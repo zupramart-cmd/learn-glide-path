@@ -439,7 +439,22 @@ function QuestionEditor({ question, index, onUpdate, onRemove, onUpdateOption, o
           )}
 
           {!isMcq && (
-            <p className="text-xs text-muted-foreground italic">Written question — students will upload their answer as an image.</p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground italic">Written question — students will upload their answer as an image.</p>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">সঠিক উত্তর (টেক্সট বা ইমেজ URL)</label>
+                <textarea 
+                  value={question.writtenAnswer || ""} 
+                  onChange={e => onUpdate({ writtenAnswer: e.target.value })} 
+                  placeholder="সঠিক উত্তর লিখুন অথবা ইমেজ URL দিন" 
+                  rows={2} 
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" 
+                />
+                {question.writtenAnswer?.startsWith("http") && (
+                  <img src={question.writtenAnswer} alt="Answer preview" className="h-20 rounded-lg object-contain mt-2" />
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
