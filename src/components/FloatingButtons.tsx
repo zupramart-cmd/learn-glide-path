@@ -499,7 +499,7 @@ export function FloatingButtons({ course }: FloatingButtonsProps = {}) {
   };
 
   const screenTitle: Record<MenuScreen, string> = {
-    main: `${settings.appName || "LMS"} সহায়ক`,
+    main: `${settings.appName || "Darpan Academy"} সহায়ক`,
     courses: "সকল কোর্স",
     "course-detail": selectedCourse?.courseName || "কোর্স বিবরণ",
     "enrollment-guide": "এনরোলমেন্ট গাইড",
