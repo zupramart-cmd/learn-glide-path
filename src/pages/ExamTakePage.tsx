@@ -264,7 +264,7 @@ export default function ExamTakePage() {
                 {/* Show correct written answer after submission */}
                 {q.type === "written" && q.writtenAnswer && (
                   <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
-                    <p className="text-xs text-muted-foreground mb-1">সঠিক উত্তর:</p>
+                        <p className="text-xs text-muted-foreground mb-1">Correct Answer:</p>
                     {q.writtenAnswer.startsWith("http") ? (
                       <img src={q.writtenAnswer} alt="Correct Answer" className="h-32 rounded-lg object-contain" />
                     ) : (
@@ -356,9 +356,9 @@ export default function ExamTakePage() {
           )}
           {examEnded && !existingSubmission && (
             <div className="mt-4">
-              <p className="text-sm text-destructive mb-4">পরীক্ষা শেষ হয়ে গেছে।</p>
+              <p className="text-sm text-destructive mb-4">Exam has ended.</p>
               <div className="space-y-3">
-                <h3 className="font-medium text-foreground">সঠিক উত্তর</h3>
+                <h3 className="font-medium text-foreground">Correct Answers</h3>
                 {exam.questions.map((q, idx) => (
                   <div key={q.id} className="bg-card border border-border rounded-xl p-3">
                     <p className="text-sm font-medium text-foreground">Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span></p>
@@ -382,7 +382,7 @@ export default function ExamTakePage() {
 
                     {q.type === "written" && q.writtenAnswer && (
                       <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">সঠিক উত্তর:</p>
+                        <p className="text-xs text-muted-foreground mb-1">Correct Answer:</p>
                         {q.writtenAnswer.startsWith("http") ? (
                           <img src={q.writtenAnswer} alt="Answer" className="h-32 rounded-lg object-contain" />
                         ) : (
@@ -411,7 +411,7 @@ export default function ExamTakePage() {
   return (
     <div className="p-4 max-w-2xl mx-auto animate-fade-in">
       {/* Timer bar */}
-      <div className="sticky top-14 z-40 bg-background border-b border-border -mx-4 px-4 py-2 flex items-center justify-between">
+      <div className="sticky top-0 z-40 bg-background border-b border-border -mx-4 px-4 py-2 flex items-center justify-between">
         <span className="text-sm text-foreground font-medium">Q {currentQ + 1}/{exam.questions.length}</span>
         <span className={`flex items-center gap-1 text-sm font-mono font-bold ${timeLeft < 60 ? "text-destructive" : "text-foreground"}`}>
           <Clock className="h-4 w-4" /> {formatTime(timeLeft)}
@@ -419,7 +419,7 @@ export default function ExamTakePage() {
       </div>
 
       {/* Question navigation dots */}
-      <div className="flex flex-wrap gap-1.5 my-4">
+      <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
         {exam.questions.map((q, idx) => {
           const answered = answers[q.id]?.selectedOption !== undefined || answers[q.id]?.writtenImageUrl;
           return (
