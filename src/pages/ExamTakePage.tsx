@@ -356,9 +356,9 @@ export default function ExamTakePage() {
           )}
           {examEnded && !existingSubmission && (
             <div className="mt-4">
-              <p className="text-sm text-destructive mb-4">পরীক্ষা শেষ হয়ে গেছে।</p>
+              <p className="text-sm text-destructive mb-4">Exam has ended.</p>
               <div className="space-y-3">
-                <h3 className="font-medium text-foreground">সঠিক উত্তর</h3>
+                <h3 className="font-medium text-foreground">Correct Answers</h3>
                 {exam.questions.map((q, idx) => (
                   <div key={q.id} className="bg-card border border-border rounded-xl p-3">
                     <p className="text-sm font-medium text-foreground">Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span></p>
