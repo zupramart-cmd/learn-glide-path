@@ -261,6 +261,17 @@ export default function ExamTakePage() {
                 {q.type === "written" && !ans?.writtenImageUrl && (
                   <p className="text-xs text-muted-foreground italic mt-2">No answer submitted</p>
                 )}
+                {/* Show correct written answer after submission */}
+                {q.type === "written" && q.writtenAnswer && (
+                  <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
+                    <p className="text-xs text-muted-foreground mb-1">সঠিক উত্তর:</p>
+                    {q.writtenAnswer.startsWith("http") ? (
+                      <img src={q.writtenAnswer} alt="Correct Answer" className="h-32 rounded-lg object-contain" />
+                    ) : (
+                      <p className="text-sm text-foreground">{q.writtenAnswer}</p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
