@@ -411,7 +411,7 @@ export default function ExamTakePage() {
   return (
     <div className="p-4 max-w-2xl mx-auto animate-fade-in">
       {/* Timer bar */}
-      <div className="sticky top-14 z-40 bg-background border-b border-border -mx-4 px-4 py-2 flex items-center justify-between">
+      <div className="sticky top-0 z-40 bg-background border-b border-border -mx-4 px-4 py-2 flex items-center justify-between">
         <span className="text-sm text-foreground font-medium">Q {currentQ + 1}/{exam.questions.length}</span>
         <span className={`flex items-center gap-1 text-sm font-mono font-bold ${timeLeft < 60 ? "text-destructive" : "text-foreground"}`}>
           <Clock className="h-4 w-4" /> {formatTime(timeLeft)}
@@ -419,7 +419,7 @@ export default function ExamTakePage() {
       </div>
 
       {/* Question navigation dots */}
-      <div className="flex flex-wrap gap-1.5 my-4">
+      <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
         {exam.questions.map((q, idx) => {
           const answered = answers[q.id]?.selectedOption !== undefined || answers[q.id]?.writtenImageUrl;
           return (
