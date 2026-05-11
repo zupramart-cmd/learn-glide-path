@@ -55,7 +55,7 @@ export default function AdminSettingsPage() {
       });
       toast.success("Settings saved");
       // Clear settings cache so changes reflect immediately
-      localStorage.removeItem("fsc_settings_app");
+      invalidateCache("settings");
     } catch (err: any) {
       toast.error(err.message);
     }
