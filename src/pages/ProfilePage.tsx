@@ -1,8 +1,9 @@
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
-import { doc, updateDoc, getDoc, addDoc, collection, getDocs, arrayUnion, Timestamp, query, where } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, getDocs, arrayUnion, Timestamp, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedDoc, getCachedCollection } from "@/lib/firestoreCache";
 import { LogOut, KeyRound, MessageCircle, ExternalLink, PlusCircle, Copy, Check, Timer, Clock, Calendar, FolderOpen, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
