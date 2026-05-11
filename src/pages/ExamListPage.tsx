@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { examDb } from "@/lib/examFirebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Exam, ExamSubmission } from "@/types/exam";
