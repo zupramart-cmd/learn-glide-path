@@ -110,15 +110,25 @@ export default function AdminUsersPage() {
 
       const userDoc = users.find(u => u.id === userId);
       const updates: Record<string, any> = { status: "approved" };
-
-      // If user has no active course, set this one as active
-      if (!userDoc?.activeCourseId) {
-        updates.activeCourseId = courseId;
-      }
+      if (!userDoc?.activeCourseId) updates.activeCourseId = courseId;
 
       await updateDoc(doc(db, "users", userId), updates);
+
+      // Local state updates
+      setEnrollRequests(prev => prev.map(r =>
+        r.id === reqId ? { ...r, status: "approved" } : r
+      ));
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, ...updates } as UserWithId : u
+      ));
+      setSelectedUser(prev =>
+        prev && prev.id === userId ? { ...prev, ...updates } as UserWithId : prev
+      );
+
+      invalidateCache("users");
+      invalidateCache("enrollRequests");
+
       toast.success(`✓ ${courseName} — approved`);
-      await fetchData(true);
     } catch (e: any) {
       toast.error(e.message || "Approve failed");
     } finally {
@@ -126,10 +136,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  /**
-   * BUG FIX 4: When rejecting, if this was the user's only approved course,
-   * update user.status back to "pending" so the badge reflects reality.
-   */
   const handleRejectRequest = async (reqId: string, userId: string, courseName: string, courseId: string) => {
     if (actionLoading) return;
     setActionLoading(reqId);
@@ -139,17 +145,13 @@ export default function AdminUsersPage() {
         rejectedAt: Timestamp.now(),
       });
 
-      // Check if user still has any other approved requests
       const otherApproved = enrollRequests.filter(
         r => r.userId === userId && r.id !== reqId && r.status === "approved"
       );
       const userDoc = users.find(u => u.id === userId);
       const userUpdates: Record<string, any> = {};
 
-      if (otherApproved.length === 0) {
-        userUpdates.status = "rejected";
-      }
-      // If rejected course was the active one, clear it
+      if (otherApproved.length === 0) userUpdates.status = "rejected";
       if (userDoc?.activeCourseId === courseId) {
         const nextApproved = otherApproved[0];
         userUpdates.activeCourseId = nextApproved
@@ -161,8 +163,23 @@ export default function AdminUsersPage() {
         await updateDoc(doc(db, "users", userId), userUpdates);
       }
 
+      // Local state updates
+      setEnrollRequests(prev => prev.map(r =>
+        r.id === reqId ? { ...r, status: "rejected" } : r
+      ));
+      if (Object.keys(userUpdates).length > 0) {
+        setUsers(prev => prev.map(u =>
+          u.id === userId ? { ...u, ...userUpdates } as UserWithId : u
+        ));
+        setSelectedUser(prev =>
+          prev && prev.id === userId ? { ...prev, ...userUpdates } as UserWithId : prev
+        );
+      }
+
+      invalidateCache("users");
+      invalidateCache("enrollRequests");
+
       toast.success(`✗ ${courseName} — rejected`);
-      await fetchData(true);
     } catch (e: any) {
       toast.error(e.message || "Reject failed");
     } finally {
