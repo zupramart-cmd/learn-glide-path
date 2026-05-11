@@ -59,9 +59,8 @@ export default function AuthPage() {
   }, [user, userDoc]);
 
   useEffect(() => {
-    // Load all courses for dropdown
-    getDocs(collection(db, "courses")).then((snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Course));
+    // Load all courses for dropdown (cached)
+    getCachedCollection<Course>(db, "courses").then((list) => {
       setAllCourses(list);
       if (courseId) {
         const found = list.find(c => c.id === courseId);
