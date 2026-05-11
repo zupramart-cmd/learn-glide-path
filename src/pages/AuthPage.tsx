@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, addDoc, collection, updateDoc, arrayUnion, Timestamp, getDocs } from "firebase/firestore";
+import { doc, addDoc, collection, updateDoc, arrayUnion, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedCollection } from "@/lib/firestoreCache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { Course } from "@/types";
@@ -58,9 +59,8 @@ export default function AuthPage() {
   }, [user, userDoc]);
 
   useEffect(() => {
-    // Load all courses for dropdown
-    getDocs(collection(db, "courses")).then((snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Course));
+    // Load all courses for dropdown (cached)
+    getCachedCollection<Course>(db, "courses").then((list) => {
       setAllCourses(list);
       if (courseId) {
         const found = list.find(c => c.id === courseId);

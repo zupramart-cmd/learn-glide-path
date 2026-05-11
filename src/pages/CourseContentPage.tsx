@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedDoc, getCachedCollection } from "@/lib/firestoreCache";
 import { useAuth } from "@/contexts/AuthContext";
 import { Video, Course } from "@/types";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
@@ -23,15 +24,15 @@ export default function CourseContentPage() {
     if (!user) { navigate("/auth?mode=login"); return; }
     const fetch = async () => {
       if (!courseId) return;
-      const courseSnap = await getDoc(doc(db, "courses", courseId));
-      if (courseSnap.exists()) {
-        const courseData = { id: courseSnap.id, ...courseSnap.data() } as Course;
-        setCourse(courseData);
-      }
+      const courseData = await getCachedDoc<Course>(db, "courses", courseId);
+      if (courseData) setCourse(courseData);
 
-      const q = query(collection(db, "videos"), where("courseId", "==", courseId));
-      const snap = await getDocs(q);
-      const vids = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Video));
+      const vids = await getCachedCollection<Video>(
+        db,
+        "videos",
+        [where("courseId", "==", courseId)],
+        `course_${courseId}`,
+      );
       vids.sort((a, b) => (a.order || 0) - (b.order || 0));
       setVideos(vids);
       setSubjects([...new Set(vids.map((v) => v.subjectName))] as string[]);

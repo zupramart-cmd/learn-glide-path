@@ -31,8 +31,11 @@ export default function AdminVideosPage() {
   const [pdfURL, setPdfURL] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = async () => {
-    invalidateCache("videos");
+  const fetchData = async (forceRefresh = false) => {
+    if (forceRefresh) {
+      invalidateCache("videos");
+      invalidateCache("courses");
+    }
     const [vids, courses_] = await Promise.all([
       getCachedCollection<Video>(db, "videos"),
       getCachedCollection<Course>(db, "courses"),
@@ -84,14 +87,16 @@ export default function AdminVideosPage() {
         await addDoc(collection(db, "videos"), data);
         toast.success("Video added");
       }
-      setShowForm(false); resetForm(); fetchData();
+      setShowForm(false); resetForm(); fetchData(true);
     } catch (err: any) { toast.error(err.message); }
     setSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, "videos", id));
-    toast.success("Video deleted"); fetchData();
+    invalidateCache("videos");
+    setVideos(prev => prev.filter(v => v.id !== id));
+    toast.success("Video deleted");
   };
 
   const moveVideo = async (index: number, direction: "up" | "down") => {
@@ -99,15 +104,27 @@ export default function AdminVideosPage() {
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= filteredList.length) return;
 
-    const batch = writeBatch(db);
-    const orderA = filteredList[index].order || index;
-    const orderB = filteredList[swapIndex].order || swapIndex;
+    const a = filteredList[index];
+    const b = filteredList[swapIndex];
+    const orderA = a.order || index;
+    const orderB = b.order || swapIndex;
 
-    batch.update(doc(db, "videos", filteredList[index].id), { order: orderB });
-    batch.update(doc(db, "videos", filteredList[swapIndex].id), { order: orderA });
+    const batch = writeBatch(db);
+    batch.update(doc(db, "videos", a.id), { order: orderB });
+    batch.update(doc(db, "videos", b.id), { order: orderA });
     await batch.commit();
+
+    invalidateCache("videos");
+    setVideos(prev => {
+      const next = prev.map(v => {
+        if (v.id === a.id) return { ...v, order: orderB };
+        if (v.id === b.id) return { ...v, order: orderA };
+        return v;
+      });
+      next.sort((x, y) => (x.order || 0) - (y.order || 0));
+      return next;
+    });
     toast.success("Order updated");
-    fetchData();
   };
 
   const filtered = videos.filter((v) => {

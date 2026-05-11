@@ -1,8 +1,9 @@
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
-import { doc, updateDoc, getDoc, addDoc, collection, getDocs, arrayUnion, Timestamp, query, where } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, getDocs, arrayUnion, Timestamp, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedDoc, getCachedCollection } from "@/lib/firestoreCache";
 import { LogOut, KeyRound, MessageCircle, ExternalLink, PlusCircle, Copy, Check, Timer, Clock, Calendar, FolderOpen, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -50,16 +51,16 @@ export default function ProfilePage() {
   // ── active course fetch ───────────────────────────────────────────────────
   useEffect(() => {
     if (!userDoc?.activeCourseId) { setActiveCourse(null); return; }
-    getDoc(doc(db, "courses", userDoc.activeCourseId)).then((snap) => {
-      setActiveCourse(snap.exists() ? ({ id: snap.id, ...snap.data() } as Course) : null);
+    getCachedDoc<Course>(db, "courses", userDoc.activeCourseId).then((c) => {
+      setActiveCourse(c);
     });
   }, [userDoc?.activeCourseId]);
 
   // ── load available courses when enroll dialog opens ───────────────────────
   useEffect(() => {
     if (enrollOpen) {
-      getDocs(collection(db, "courses")).then((snap) => {
-        setAllCourses(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Course)));
+      getCachedCollection<Course>(db, "courses").then((list) => {
+        setAllCourses(list);
       });
     }
   }, [enrollOpen]);

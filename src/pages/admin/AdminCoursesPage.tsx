@@ -51,8 +51,8 @@ export default function AdminCoursesPage() {
   const [allMaterialsLink, setAllMaterialsLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchCourses = async () => {
-    invalidateCache("courses");
+  const fetchCourses = async (forceRefresh = false) => {
+    if (forceRefresh) invalidateCache("courses");
     const list = await getCachedCollection<Course>(db, "courses");
     list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
     setCourses(list);
@@ -100,14 +100,14 @@ export default function AdminCoursesPage() {
         await addDoc(collection(db, "courses"), data);
         toast.success("Course added");
       }
-      closeForm(); fetchCourses();
+      closeForm(); fetchCourses(true);
     } catch (err: any) { toast.error(err.message); }
     setSubmitting(false);
   };
 
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, "courses", id));
-    toast.success("Course deleted"); fetchCourses();
+    toast.success("Course deleted"); fetchCourses(true);
   };
 
   const moveCourse = async (index: number, direction: "up" | "down") => {
@@ -120,7 +120,7 @@ export default function AdminCoursesPage() {
     batch.update(doc(db, "courses", courses[swapIndex].id), { order: orderA });
     await batch.commit();
     toast.success("Order updated");
-    fetchCourses();
+    fetchCourses(true);
   };
 
   if (loading) return <AdminCourseListSkeleton count={4} />;

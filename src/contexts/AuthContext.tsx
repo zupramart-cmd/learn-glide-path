@@ -28,10 +28,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const USER_DOC_TTL = 5 * 60 * 1000; // 5 min
+  const userDocCacheKey = (uid: string) => `userDoc_${uid}`;
+
   const fetchUserDoc = async (uid: string) => {
+    const cacheKey = userDocCacheKey(uid);
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.timestamp && Date.now() - parsed.timestamp < USER_DOC_TTL && parsed.data) {
+          setUserDoc(parsed.data as UserDoc);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+
     const snap = await getDoc(doc(db, "users", uid));
     if (snap.exists()) {
-      setUserDoc(snap.data() as UserDoc);
+      const data = snap.data() as UserDoc;
+      setUserDoc(data);
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch { /* ignore */ }
     } else {
       setUserDoc(null);
     }
@@ -73,6 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (user) {
+      try { sessionStorage.removeItem(userDocCacheKey(user.uid)); } catch {}
+    }
     await signOut(auth);
     setUserDoc(null);
   };
@@ -82,7 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUserDoc = async () => {
-    if (user) await fetchUserDoc(user.uid);
+    if (user) {
+      try { sessionStorage.removeItem(userDocCacheKey(user.uid)); } catch {}
+      await fetchUserDoc(user.uid);
+    }
   };
 
   return (
