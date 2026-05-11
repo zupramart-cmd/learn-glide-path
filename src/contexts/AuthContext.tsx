@@ -92,6 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (user) {
+      try { sessionStorage.removeItem(userDocCacheKey(user.uid)); } catch {}
+    }
     await signOut(auth);
     setUserDoc(null);
   };
@@ -101,7 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUserDoc = async () => {
-    if (user) await fetchUserDoc(user.uid);
+    if (user) {
+      try { sessionStorage.removeItem(userDocCacheKey(user.uid)); } catch {}
+      await fetchUserDoc(user.uid);
+    }
   };
 
   return (
