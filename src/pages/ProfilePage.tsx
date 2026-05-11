@@ -51,16 +51,16 @@ export default function ProfilePage() {
   // ── active course fetch ───────────────────────────────────────────────────
   useEffect(() => {
     if (!userDoc?.activeCourseId) { setActiveCourse(null); return; }
-    getDoc(doc(db, "courses", userDoc.activeCourseId)).then((snap) => {
-      setActiveCourse(snap.exists() ? ({ id: snap.id, ...snap.data() } as Course) : null);
+    getCachedDoc<Course>(db, "courses", userDoc.activeCourseId).then((c) => {
+      setActiveCourse(c);
     });
   }, [userDoc?.activeCourseId]);
 
   // ── load available courses when enroll dialog opens ───────────────────────
   useEffect(() => {
     if (enrollOpen) {
-      getDocs(collection(db, "courses")).then((snap) => {
-        setAllCourses(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Course)));
+      getCachedCollection<Course>(db, "courses").then((list) => {
+        setAllCourses(list);
       });
     }
   }, [enrollOpen]);
