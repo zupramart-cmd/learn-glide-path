@@ -141,24 +141,27 @@ export default function ExamListPage() {
         setSubmittedIds(prev => new Set([...prev, ...locallySubmitted]));
       }
 
-      // 2) Slow path: verify against Firestore for all ended exams
-      // (only ended exams matter — live ones we already have backup for)
+      // 2) Slow path: verify against Firestore for all ended exams via chunked "in" queries
       const endedExams = list.filter(e => (e.endTime?.toMillis?.() || 0) < nowMs);
       if (endedExams.length === 0) return;
 
-      const checks = endedExams.map(async exam => {
-        const submissionId = `${exam.id}_${user.uid}`;
+      const examIds = endedExams.map(e => e.id);
+      const firestoreSubmitted = new Set<string>();
+      // Firestore "in" supports up to 10 values
+      for (let i = 0; i < examIds.length; i += 10) {
+        const chunk = examIds.slice(i, i + 10);
         try {
-          const snap = await getDoc(doc(examDb, "submissions", submissionId));
-          if (snap.exists()) return exam.id;
+          const snap = await getDocs(query(
+            collection(examDb, "submissions"),
+            where("userId", "==", user.uid),
+            where("examId", "in", chunk),
+          ));
+          snap.docs.forEach(d => {
+            const examId = (d.data() as any).examId as string;
+            if (examId) firestoreSubmitted.add(examId);
+          });
         } catch { /* ignore */ }
-        return null;
-      });
-
-      const results = await Promise.all(checks);
-      const firestoreSubmitted = new Set(
-        results.filter((id): id is string => id !== null)
-      );
+      }
       if (firestoreSubmitted.size > 0) {
         setSubmittedIds(prev => new Set([...prev, ...firestoreSubmitted]));
       }
