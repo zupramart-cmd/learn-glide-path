@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { invalidateCache } from "@/lib/firestoreCache";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { PaymentMethod, SocialLink, UsefulLink } from "@/types";
 import { toast } from "sonner";
