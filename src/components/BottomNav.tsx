@@ -1,25 +1,22 @@
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { Home, BookOpen, User, LayoutGrid, Video, GraduationCap, ClipboardList, MoreHorizontal } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { FolderOpen, Timer, User, LayoutGrid, Video, GraduationCap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const userTabs = [
-  { to: "/home", icon: Home, label: "Home" },
-  { to: "/my-courses", icon: BookOpen, label: "Courses" },
+  { to: "/home", icon: GraduationCap, label: "Courses" },
+  { to: "/content", icon: FolderOpen, label: "Content" },
+  { to: "/exams", icon: Timer, label: "Exam" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
 const adminTabs = [
-  { to: "/admin", icon: LayoutGrid, label: "Home" },
+  { to: "/admin", icon: LayoutGrid, label: "Dashboard" },
   { to: "/admin/videos/add", icon: Video, label: "Video" },
   { to: "/admin/courses", icon: GraduationCap, label: "Course", addParam: true },
-  { to: "/admin/exams/add", icon: ClipboardList, label: "Exam" },
+  { to: "/admin/exams/add", icon: Timer, label: "Exam" },
 ];
 
-interface Props {
-  onMoreClick: () => void;
-}
-
-export function BottomNav({ onMoreClick }: Props) {
+export function BottomNav() {
   const { pathname } = useLocation();
   const { userDoc } = useAuth();
   const isAdmin = userDoc?.role === "admin";
@@ -44,15 +41,6 @@ export function BottomNav({ onMoreClick }: Props) {
             </Link>
           );
         })}
-        {!isAdmin && (
-          <button
-            onClick={onMoreClick}
-            className="flex flex-col items-center gap-0.5 px-3 py-1 text-xs text-muted-foreground"
-          >
-            <MoreHorizontal className="h-5 w-5" />
-            <span>More</span>
-          </button>
-        )}
       </div>
     </nav>
   );

@@ -13,7 +13,7 @@ export default function IndexRedirect() {
 
   // Approved student → redirect to my-courses on first visit only
   if (user && userDoc?.role === "student" && userDoc?.status === "approved") {
-    return <Navigate to="/my-courses" replace />;
+    return <Navigate to="/content" replace />;
   }
 
   // Everyone else sees the homepage

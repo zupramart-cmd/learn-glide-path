@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMS Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0a0a0a;
+    --white: #f8f8f5;
+    --gray-100: #f0f0ec;
+    --gray-200: #e0e0da;
+    --gray-400: #9a9a94;
+    --gray-600: #5a5a54;
+    --border: rgba(0,0,0,0.1);
+    --card-bg: #ffffff;
+    --section-alt: #f4f4f0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Noto Sans Bengali', sans-serif; background: var(--white); color: var(--black); overflow-x: hidden; line-height: 1.7; }
+
+  /* NAV */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(248,248,245,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 5%; display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 2px; color: var(--black); text-decoration: none; }
+  .nav-logo span { color: var(--gray-400); }
+  .nav-links { display: flex; gap: 2rem; list-style: none; align-items: center; }
+  .nav-links a { text-decoration: none; color: var(--gray-600); font-size: 0.85rem; font-weight: 500; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--black); }
+  .nav-cta { background: var(--black); color: var(--white) !important; padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 600 !important; }
+  .nav-cta:hover { background: var(--gray-600); }
+  .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: none; border: none; padding: 4px; }
+  .hamburger span { display: block; width: 24px; height: 2px; background: var(--black); border-radius: 2px; transition: all 0.3s; }
+  .mobile-menu { display: none; position: fixed; top: 64px; left: 0; right: 0; background: var(--white); border-bottom: 1px solid var(--border); padding: 1.5rem 5%; z-index: 999; flex-direction: column; gap: 1.2rem; }
+  .mobile-menu.open { display: flex; }
+  .mobile-menu a { text-decoration: none; color: var(--gray-600); font-size: 1rem; font-weight: 500; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .mobile-menu a:last-child { border-bottom: none; }
+
+  /* HERO */
+  .hero { min-height: 100vh; display: flex; align-items: center; padding: 100px 5% 80px; position: relative; overflow: hidden; }
+  .hero-bg { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 70% 50%, rgba(0,0,0,0.04) 0%, transparent 70%), linear-gradient(180deg, #f8f8f5 0%, #f0f0ec 100%); }
+  .hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px); background-size: 60px 60px; mask-image: radial-gradient(ellipse 70% 70% at 70% 50%, black 0%, transparent 80%); }
+  .hero-content { position: relative; z-index: 2; max-width: 1200px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+  .hero-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--black); color: var(--white); padding: 0.35rem 0.9rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1.5rem; }
+  .hero-badge svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.8rem, 5.5vw, 4.8rem); line-height: 0.95; letter-spacing: 2px; margin-bottom: 1.5rem; }
+  .hero h1 span { display: block; -webkit-text-stroke: 2px var(--black); color: transparent; }
+  .hero-desc { font-size: 1rem; color: var(--gray-600); margin-bottom: 2.5rem; max-width: 480px; line-height: 1.8; }
+  .hero-btns { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .btn-primary { background: var(--black); color: var(--white); padding: 0.8rem 1.8rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid var(--black); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+  .btn-secondary { background: transparent; color: var(--black); padding: 0.8rem 1.8rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; border: 2px solid var(--black); transition: background 0.2s, color 0.2s; }
+  .btn-secondary:hover { background: var(--black); color: var(--white); }
+  .hero-visual { position: relative; }
+  .hero-mockup { background: var(--black); border-radius: 16px; padding: 2px; box-shadow: 0 40px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1); transform: perspective(1000px) rotateY(-8deg) rotateX(4deg); transition: transform 0.4s; }
+  .hero-mockup:hover { transform: perspective(1000px) rotateY(-4deg) rotateX(2deg); }
+  .mockup-bar { background: #1a1a1a; border-radius: 14px 14px 0 0; padding: 12px 16px; display: flex; align-items: center; gap: 8px; }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .mockup-dot.r { background: #ff5f57; } .mockup-dot.y { background: #febc2e; } .mockup-dot.g { background: #28c840; }
+  .mockup-url { flex: 1; background: rgba(255,255,255,0.08); border-radius: 6px; padding: 4px 10px; font-family: 'Space Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-left: 8px; }
+  .mockup-screen { background: #f8f8f5; border-radius: 0 0 14px 14px; padding: 1.5rem; min-height: 300px; }
+  .mockup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .mockup-logo-text { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 2px; }
+  .mockup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }
+  .mockup-stat { background: var(--black); color: var(--white); border-radius: 8px; padding: 0.75rem; }
+  .mockup-stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; line-height: 1; }
+  .mockup-stat-label { font-size: 0.65rem; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .mockup-courses { display: flex; flex-direction: column; gap: 0.5rem; }
+  .mockup-course-item { background: var(--gray-100); border-radius: 6px; padding: 0.6rem 0.8rem; display: flex; align-items: center; gap: 0.7rem; }
+  .mockup-course-icon { width: 28px; height: 28px; background: var(--black); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mockup-course-icon svg { width: 14px; height: 14px; color: white; }
+  .mockup-course-info { flex: 1; }
+  .mockup-course-name { font-size: 0.72rem; font-weight: 600; }
+  .mockup-course-sub { font-size: 0.6rem; color: var(--gray-400); }
+  .mockup-course-badge { background: var(--black); color: var(--white); font-size: 0.55rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+
+  /* STATS BAR */
+  .stats-bar { background: var(--black); color: var(--white); padding: 1.5rem 5%; }
+  .stats-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  .stat-item { text-align: center; padding: 0.5rem; }
+  .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; line-height: 1; display: block; }
+  .stat-label { font-size: 0.78rem; color: rgba(255,255,255,0.5); }
+
+  /* SECTIONS */
+  section { padding: 90px 5%; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .section-tag { font-family: 'Space Mono', monospace; font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: var(--gray-400); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .section-tag::before { content: ''; display: block; width: 24px; height: 1px; background: var(--gray-400); }
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(1.9rem, 3.5vw, 2.8rem); letter-spacing: 1px; line-height: 1.05; margin-bottom: 1rem; }
+  .section-subtitle { font-size: 0.95rem; color: var(--gray-600); max-width: 600px; line-height: 1.8; }
+
+  /* FEATURE TABS — pill toggle */
+  .features-section { background: var(--white); }
+  .features-tabs { display: inline-flex; margin-top: 2.5rem; margin-bottom: 3rem; background: var(--gray-100); border-radius: 12px; padding: 4px; border: 1px solid var(--gray-200); }
+  .tab-btn { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.6rem 1.4rem; background: none; border: none; cursor: pointer; font-family: 'Noto Sans Bengali', sans-serif; font-size: 0.88rem; font-weight: 600; color: var(--gray-400); border-radius: 9px; transition: all 0.22s; white-space: nowrap; }
+  .tab-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .tab-btn.active { background: white; color: var(--black); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .tab-panel-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 6px; border-radius: 20px; }
+  .tab-btn:first-child .tab-panel-label { background: rgba(239,68,68,0.12); color: #dc2626; }
+  .tab-btn:first-child.active .tab-panel-label { background: rgba(239,68,68,0.15); color: #b91c1c; }
+  .tab-btn:last-child .tab-panel-label { background: rgba(37,99,235,0.12); color: #1d4ed8; }
+  .tab-btn:last-child.active .tab-panel-label { background: rgba(37,99,235,0.15); color: #1e40af; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; }
+  .feature-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; transition: box-shadow 0.2s, transform 0.2s; }
+  .feature-card:hover { box-shadow: 0 12px 32px rgba(0,0,0,0.08); transform: translateY(-3px); }
+  .feature-icon { width: 42px; height: 42px; background: var(--black); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; flex-shrink: 0; }
+  .feature-icon svg { width: 20px; height: 20px; color: white; }
+  .feature-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.45rem; }
+  .feature-desc { font-size: 0.85rem; color: var(--gray-600); line-height: 1.7; }
+  .feature-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.9rem; }
+  .feature-tag { font-size: 0.68rem; padding: 2px 8px; background: var(--gray-100); border-radius: 100px; color: var(--gray-600); font-weight: 500; }
+
+  /* EXAM SECURITY */
+  .security-section { background: var(--black); color: var(--white); }
+  .security-section .section-tag { color: rgba(255,255,255,0.4); }
+  .security-section .section-tag::before { background: rgba(255,255,255,0.3); }
+  .security-section .section-subtitle { color: rgba(255,255,255,0.6); }
+  .security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden; margin-top: 3rem; }
+  .security-item { background: var(--black); padding: 1.75rem; transition: background 0.2s; }
+  .security-item:hover { background: #111; }
+  .security-item-icon { width: 38px; height: 38px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+  .security-item-icon svg { width: 18px; height: 18px; color: white; }
+  .security-item-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .security-item-desc { font-size: 0.82rem; color: rgba(255,255,255,0.5); line-height: 1.7; }
+
+  /* PRICING */
+  .pricing-section { background: var(--section-alt); }
+  .pricing-card { max-width: 540px; margin: 3rem auto 0; background: var(--black); color: var(--white); border-radius: 20px; padding: 2.5rem; position: relative; overflow: hidden; }
+  .pricing-card::before { content: ''; position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(255,255,255,0.06), transparent 70%); border-radius: 50%; }
+  .pricing-badge { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.8rem; border-radius: 100px; font-size: 0.72rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1.25rem; }
+  .pricing-badge svg { width: 13px; height: 13px; }
+  .pricing-label { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin-bottom: 0.3rem; }
+  .pricing-price { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; margin-bottom: 0.4rem; }
+  .pricing-note { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 2rem; }
+  .pricing-divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.75rem 0; }
+  .pricing-features { list-style: none; display: flex; flex-direction: column; gap: 0.9rem; }
+  .pricing-features li { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.88rem; color: rgba(255,255,255,0.8); }
+  .pricing-features li svg { width: 17px; height: 17px; color: white; flex-shrink: 0; margin-top: 2px; }
+  .pricing-cta { display: block; width: 100%; background: white; color: var(--black); text-align: center; padding: 0.9rem; border-radius: 10px; font-weight: 700; font-size: 0.95rem; text-decoration: none; margin-top: 2rem; transition: background 0.2s, transform 0.2s; }
+  .pricing-cta:hover { background: var(--gray-100); transform: translateY(-2px); }
+
+  /* DEMO */
+  .demo-section { background: var(--white); }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; margin-top: 3rem; }
+  .demo-card { background: var(--gray-100); border-radius: 14px; padding: 1.75rem; border: 1px solid var(--border); }
+  .demo-card h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 1px; margin-bottom: 1.2rem; }
+  .demo-login-row { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.25rem; }
+  .demo-cred-wrap { background: white; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.75rem; min-width: 0; }
+  .demo-cred-inner { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; font-family: 'Space Mono', monospace; font-size: 0.78rem; color: var(--gray-600); overflow: hidden; }
+  .demo-cred-inner svg { width: 13px; height: 13px; color: var(--gray-400); flex-shrink: 0; }
+  .demo-cred-inner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .copy-btn { flex-shrink: 0; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 5px; padding: 3px 9px; cursor: pointer; font-size: 0.7rem; font-weight: 600; color: var(--gray-600); transition: all 0.18s; display: inline-flex; align-items: center; gap: 3px; font-family: 'Noto Sans Bengali', sans-serif; white-space: nowrap; line-height: 1.6; }
+  .copy-btn svg { width: 10px; height: 10px; }
+  .copy-btn:hover { background: var(--black); color: white; border-color: var(--black); }
+  .copy-btn.copied { background: #16a34a; color: white; border-color: #16a34a; }
+  .demo-link { display: inline-flex; align-items: center; gap: 0.45rem; background: var(--black); color: var(--white); padding: 0.65rem 1.3rem; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.85rem; transition: transform 0.2s; }
+  .demo-link:hover { transform: translateY(-2px); }
+  .demo-link svg { width: 14px; height: 14px; }
+  .demo-features-list { display: flex; flex-direction: column; gap: 0.85rem; }
+  .demo-feature-item { display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.9rem; background: var(--gray-100); border-radius: 10px; border: 1px solid var(--border); }
+  .demo-feature-icon { width: 34px; height: 34px; background: var(--black); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .demo-feature-icon svg { width: 16px; height: 16px; color: white; }
+  .demo-feature-text h4 { font-weight: 700; font-size: 0.88rem; margin-bottom: 0.2rem; }
+  .demo-feature-text p { font-size: 0.8rem; color: var(--gray-600); line-height: 1.6; }
+
+  /* CONTACT */
+  .contact-section { background: var(--section-alt); }
+  .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start; margin-top: 3rem; }
+  .contact-info h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.9rem; letter-spacing: 1px; margin-bottom: 1rem; }
+  .contact-info p { font-size: 0.92rem; color: var(--gray-600); line-height: 1.8; margin-bottom: 2rem; }
+  .contact-links { display: flex; flex-direction: column; gap: 0.85rem; }
+  .contact-link-item { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.1rem; background: white; border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: var(--black); transition: box-shadow 0.2s, transform 0.2s; }
+  .contact-link-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateX(4px); }
+  .contact-link-icon { width: 38px; height: 38px; background: var(--black); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .contact-link-icon svg { width: 18px; height: 18px; color: white; }
+  .contact-link-label { font-size: 0.72rem; color: var(--gray-400); }
+  .contact-link-val { font-size: 0.88rem; font-weight: 600; }
+  .whatsapp-form-box { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 2rem; }
+  .whatsapp-form-box h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 1px; margin-bottom: 0.4rem; }
+  .whatsapp-form-box > p { font-size: 0.85rem; color: var(--gray-600); margin-bottom: 1.25rem; }
+  .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.9rem; }
+  .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); }
+  .form-group input, .form-group textarea { padding: 0.7rem 0.9rem; border: 1px solid var(--gray-200); border-radius: 8px; font-family: 'Noto Sans Bengali', sans-serif; font-size: 0.88rem; background: var(--gray-100); transition: border-color 0.2s; resize: vertical; color: var(--black); }
+  .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--black); background: white; }
+  .form-group textarea { min-height: 95px; }
+  .whatsapp-send-btn { width: 100%; padding: 0.8rem; background: #25D366; color: white; border: none; border-radius: 8px; font-family: 'Noto Sans Bengali', sans-serif; font-size: 0.9rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: background 0.2s, transform 0.2s; }
+  .whatsapp-send-btn:hover { background: #1da851; transform: translateY(-2px); }
+  .whatsapp-send-btn svg { width: 18px; height: 18px; }
+
+  /* FOOTER */
+  footer { background: var(--black); color: var(--white); padding: 2.5rem 5%; }
+ .footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column; /* এলিমেন্টগুলোকে নিচে নিচে দেখাবে */
+  align-items: center;    /* মাঝখানে এলাইন করবে */
+  gap: 0.5rem;            /* নাম এবং ক্রেডিটের মাঝে গ্যাপ তৈরি করবে */
+}
+  .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 2px; color: white; text-decoration: none; }
+  .footer-logo span { color: rgba(255,255,255,0.3); }
+  .footer-text { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+  .footer-dev-name { color: rgba(255,255,255,0.65); font-weight: 600; }
+
+  /* ANIMATIONS */
+  .fade-up { opacity: 0; transform: translateY(22px); transition: opacity 0.5s ease, transform 0.5s ease; }
+  .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .hero-content { grid-template-columns: 1fr; gap: 3rem; }
+    .hero-visual { display: none; }
+    .stats-inner { grid-template-columns: repeat(2, 1fr); }
+    .demo-grid { grid-template-columns: 1fr; }
+    .contact-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    nav { padding: 0 4%; }
+    .nav-links { display: none; }
+    .hamburger { display: flex; }
+    section { padding: 65px 4%; }
+    .hero { padding: 90px 4% 60px; }
+    .stats-inner { grid-template-columns: repeat(2, 1fr); gap: 0; }
+    .stat-item { padding: 1.25rem 0.75rem; border: 1px solid rgba(255,255,255,0.05); }
+    .pricing-card { padding: 1.75rem; }
+    .demo-card { padding: 1.25rem; }
+    .whatsapp-form-box { padding: 1.25rem; }
+    .features-grid { grid-template-columns: 1fr; }
+    .security-grid { grid-template-columns: 1fr; }
+    .features-tabs { width: 100%; }
+    .tab-btn { flex: 1; justify-content: center; padding: 0.55rem 0.4rem; font-size: 0.8rem; }
+    .tab-panel-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">LMS<span>PRO</span></a>
+  <ul class="nav-links">
+    <li><a href="#features">ফিচার</a></li>
+    <li><a href="#mockups">প্রিভিউ</a></li>
+    <li><a href="#exam">পরীক্ষা</a></li>
+    <li><a href="#guide">গাইড</a></li>
+    <li><a href="#demo">ডেমো</a></li>
+    <li><a href="#contact" class="nav-cta">যোগাযোগ করুন</a></li>
+  </ul>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features" onclick="toggleMenu()">ফিচার</a>
+  <a href="#mockups" onclick="toggleMenu()">প্রিভিউ</a>
+  <a href="#exam" onclick="toggleMenu()">পরীক্ষা নিরাপত্তা</a>
+  <a href="#guide" onclick="toggleMenu()">গাইড</a>
+  <a href="#demo" onclick="toggleMenu()">ডেমো</a>
+  <a href="#contact" onclick="toggleMenu()">যোগাযোগ করুন</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div>
+      <div class="hero-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        স্মার্ট লার্নিং ম্যানেজমেন্ট সিস্টেম
+      </div>
+      <h1>আধুনিক<span>ই-লার্নিং</span>প্ল্যাটফর্ম</h1>
+      <p class="hero-desc">কোর্স বিক্রি, ভিডিও ম্যানেজমেন্ট, লাইভ পরীক্ষা পরিচালনা এবং স্টুডেন্ট ম্যানেজমেন্ট — সব কিছু এক প্ল্যাটফর্মে। একবার বিনিয়োগ, আজীবন ব্যবহার।</p>
+      <div class="hero-btns">
+        <a href="#demo" class="btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>লাইভ ডেমো দেখুন</a>
+        <a href="#contact" class="btn-secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>যোগাযোগ করুন</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <div class="mockup-url">https://lms-i.netlify.app</div>
+        </div>
+        <div class="mockup-screen">
+          <div class="mockup-header">
+            <div class="mockup-logo-text">LMS</div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+          </div>
+          <div class="mockup-stats">
+            <div class="mockup-stat"><div class="mockup-stat-val">view</div><div class="mockup-stat-label">Course</div></div>
+            <div class="mockup-stat"><div class="mockup-stat-val">view</div><div class="mockup-stat-label">Classroom</div></div>
+            <div class="mockup-stat"><div class="mockup-stat-val">view</div><div class="mockup-stat-label">Exam</div></div>
+            <div class="mockup-stat"><div class="mockup-stat-val">view</div><div class="mockup-stat-label">Profile</div></div>
+          </div>
+          <div class="mockup-courses">
+            <div class="mockup-course-item">
+              <div class="mockup-course-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+              <div class="mockup-course-info"><div class="mockup-course-name">Subject</div><div class="mockup-course-sub">Name</div></div>
+              <div class="mockup-course-badge">Active</div>
+            </div>
+            <div class="mockup-course-item">
+              <div class="mockup-course-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+              <div class="mockup-course-info"><div class="mockup-course-name">Subject</div><div class="mockup-course-sub">Name</div></div>
+              <div class="mockup-course-badge">Active</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat-item"><span class="stat-num">2</span><span class="stat-label">প্যানেল (Admin + Student)</span></div>
+    <div class="stat-item"><span class="stat-num">24/7</span><span class="stat-label">সাপোর্ট সুবিধা</span></div>
+    <div class="stat-item"><span class="stat-num">2</span><span class="stat-label">আলাদা ডেটাবেস</span></div>
+    <div class="stat-item"><span class="stat-num">Free</span><span class="stat-label">হোস্টিং ও ডিপ্লয়</span></div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features-section" id="features">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">ফিচারসমূহ</p>
+      <h2 class="section-title">দুটি শক্তিশালী প্যানেল</h2>
+      <p class="section-subtitle">অ্যাডমিনের জন্য সম্পূর্ণ নিয়ন্ত্রণ, শিক্ষার্থীদের জন্য নিরবচ্ছিন্ন শিক্ষার অভিজ্ঞতা।</p>
+      <div class="features-tabs">
+        <button class="tab-btn active" onclick="switchTab('admin',event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          অ্যাডমিন প্যানেল <span class="tab-panel-label">ADMIN</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('student',event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          স্টুডেন্ট প্যানেল <span class="tab-panel-label">STUDENT</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="tab-admin" class="tab-content active">
+      <div class="features-grid">
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div>
+          <div class="feature-title">কোর্স ম্যানেজমেন্ট</div>
+          <div class="feature-desc">সহজে কোর্স যোগ, সম্পাদনা ও মুছুন। নাম, থাম্বনেইল, মূল্য, বিবরণ, বিষয় ও চ্যাপ্টার, ইন্সট্রাক্টর, ডিসকাশন গ্রুপ, ক্লাস রুটিন এবং সকল PDF সহ সম্পূর্ণ কোর্স পরিচালনা।</div>
+          <div class="feature-tags"><span class="feature-tag">Add / Edit / Delete</span><span class="feature-tag">থাম্বনেইল</span><span class="feature-tag">PDF</span><span class="feature-tag">রুটিন</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+          <div class="feature-title">ভিডিও ম্যানেজমেন্ট</div>
+          <div class="feature-desc">YouTube ভিডিও এম্বেড করুন সহজে। কোর্স, বিষয়, চ্যাপ্টার ভিত্তিক ভিডিও ম্যানেজমেন্ট। প্রতিটি ভিডিওতে থাম্বনেইল ও ক্লাস PDF যোগ করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">YouTube Embed</span><span class="feature-tag">চ্যাপ্টার</span><span class="feature-tag">ক্লাস PDF</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+          <div class="feature-title">পরীক্ষা ম্যানেজমেন্ট</div>
+          <div class="feature-desc">MCQ ও লিখিত প্রশ্ন, নেগেটিভ মার্ক, পাস মার্ক, সময়সীমা, স্বয়ংক্রিয় ফলাফল প্রকাশ। ছবিসহ বাল্ক প্রশ্ন আপলোড করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">MCQ + Written</span><span class="feature-tag">Negative Mark</span><span class="feature-tag">Auto Result</span><span class="feature-tag">Bulk Upload</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div class="feature-title">স্টুডেন্ট ম্যানেজমেন্ট</div>
+          <div class="feature-desc">সকল স্টুডেন্ট তালিকা, পেন্ডিং স্টুডেন্ট, ম্যানুয়াল পেমেন্ট ভেরিফিকেশন এবং অ্যাপ্রুভাল সিস্টেম।</div>
+          <div class="feature-tags"><span class="feature-tag">পেন্ডিং ভেরিফিকেশন</span><span class="feature-tag">ম্যানুয়াল পেমেন্ট</span><span class="feature-tag">অ্যাপ্রুভাল</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg></div>
+          <div class="feature-title">অ্যাপ সেটিংস</div>
+          <div class="feature-desc">অ্যাপের সকল সেটিংস এক জায়গা থেকে পরিচালনা করুন। লোগো, নাম, WhatsApp নম্বর সহ সব কাস্টমাইজ করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">App Settings</span><span class="feature-tag">কাস্টমাইজেশন</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="feature-title">ব্যাকআপ সিস্টেম</div>
+          <div class="feature-desc">পরীক্ষার প্রশ্ন Import/Export, কোর্স, ভিডিও এবং সেটিংস ব্যাকআপ নিন। ডেটা সুরক্ষিত রাখুন সবসময়।</div>
+          <div class="feature-tags"><span class="feature-tag">Import / Export</span><span class="feature-tag">Course Backup</span><span class="feature-tag">Settings Backup</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-student" class="tab-content">
+      <div class="features-grid">
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <div class="feature-title">কোর্স ডিসকভার ও এনরোলমেন্ট</div>
+          <div class="feature-desc">কোর্স ব্রাউজ করুন, এনরোল করুন। নাম, ইমেইল, পাসওয়ার্ড ও পেমেন্ট মেথড সহ সহজ এনরোলমেন্ট। ট্রানজেকশন ID ও স্ক্রিনশট দিয়ে পেমেন্ট সম্পন্ন করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">Browse Courses</span><span class="feature-tag">Easy Enroll</span><span class="feature-tag">Payment Screenshot</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <div class="feature-title">ক্লাসরুম</div>
+          <div class="feature-desc">এনরোল করা কোর্সের সকল ভিডিও একটি পরিষ্কার ইন্টারফেসে দেখুন। বিষয় ও চ্যাপ্টার ভিত্তিক সংগঠিত ক্লাসরুম।</div>
+          <div class="feature-tags"><span class="feature-tag">সকল ভিডিও</span><span class="feature-tag">সংগঠিত ক্লাস</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+          <div class="feature-title">ডিস্ট্র্যাকশন-ফ্রি ভিডিও প্লেয়ার</div>
+          <div class="feature-desc">YouTube-এর মতো ডিজাইন, সম্পূর্ণ ডিস্ট্র্যাকশন-ফ্রি প্লেয়ার। ক্লাস PDF সরাসরি ডাউনলোড করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">Clean Player</span><span class="feature-tag">PDF Download</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+          <div class="feature-title">লাইভ এক্সাম</div>
+          <div class="feature-desc">লাইভ পরীক্ষায় অংশ নিন। MCQ ও লিখিত প্রশ্ন সমাধান করুন। সময় শেষ হলে স্বয়ংক্রিয় সাবমিট। নিরাপদ ও সুরক্ষিত পরীক্ষার পরিবেশ।</div>
+          <div class="feature-tags"><span class="feature-tag">Live Exam</span><span class="feature-tag">Auto Submit</span><span class="feature-tag">MCQ + Written</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div class="feature-title">প্রোফাইল ও মাল্টিপল কোর্স</div>
+          <div class="feature-desc">একটি একাউন্টে একাধিক কোর্সে এনরোল করুন। পাসওয়ার্ড রিসেট সুবিধা। সকল কন্টেন্ট প্রোফাইল থেকে অ্যাক্সেস করুন।</div>
+          <div class="feature-tags"><span class="feature-tag">Multiple Courses</span><span class="feature-tag">Password Reset</span></div>
+        </div>
+        <div class="feature-card fade-up">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+          <div class="feature-title">অতিরিক্ত সুবিধা</div>
+          <div class="feature-desc">ডার্ক/লাইট মোড, যেকোনো ডিভাইসে ইনস্টল করুন (PWA), অ্যাপ শেয়ার অপশন, AI Chatbot সহায়তা এবং WhatsApp সরাসরি যোগাযোগ বাটন।</div>
+          <div class="feature-tags"><span class="feature-tag">Dark/Light Mode</span><span class="feature-tag">PWA Install</span><span class="feature-tag">AI Chatbot</span><span class="feature-tag">WhatsApp</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EXAM SECURITY -->
+<section class="security-section" id="exam">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">পরীক্ষার নিরাপত্তা</p>
+      <h2 class="section-title" style="color:white;">অ্যান্টি-চিটিং সিস্টেম</h2>
+      <p class="section-subtitle">পরীক্ষার সততা নিশ্চিত করতে শিল্পমানের নিরাপত্তা ব্যবস্থা।</p>
+    </div>
+    <div class="security-grid fade-up">
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></div>
+        <div class="security-item-title">ফুলস্ক্রিন মোড</div>
+        <div class="security-item-desc">পরীক্ষা শুরু হলে ফুলস্ক্রিন মোড বাধ্যতামূলক। সাবমিট না করে বের হওয়া সম্ভব নয়।</div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+        <div class="security-item-title">ট্যাব সুইচ সীমা</div>
+        <div class="security-item-desc">মাত্র ২ বার ট্যাব পরিবর্তন করলে পরীক্ষা স্বয়ংক্রিয়ভাবে সাবমিট হয়ে যাবে।</div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+        <div class="security-item-title">Copy-Paste নিষিদ্ধ</div>
+        <div class="security-item-desc">পরীক্ষা চলাকালীন Copy, Paste এবং Right-click সম্পূর্ণ নিষিদ্ধ।</div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <div class="security-item-title">ডিভাইস তথ্য রেকর্ড</div>
+        <div class="security-item-desc">পরীক্ষার্থীর ডিভাইস ও ব্রাউজার তথ্য স্বয়ংক্রিয়ভাবে রেকর্ড করা হয়।</div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="security-item-title">অটো-সাবমিট টাইমার</div>
+        <div class="security-item-desc">নির্ধারিত সময় শেষ হলে পরীক্ষা স্বয়ংক্রিয়ভাবে সাবমিট হয়ে যাবে।</div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div class="security-item-title">একবার প্রবেশ নিয়ম</div>
+        <div class="security-item-desc">একবার পরীক্ষায় প্রবেশ করলে পরবর্তীতে আর দেওয়ার সুযোগ নেই। সঠিক সময়ে পরীক্ষা দিতে হবে।</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-section" id="pricing">
+  <div class="container">
+    <div class="fade-up" style="text-align:center;">
+      <p class="section-tag" style="justify-content:center;">মূল্য পরিকল্পনা</p>
+      <h2 class="section-title">একবার বিনিয়োগ, সারাজীবন সুবিধা</h2>
+      <p class="section-subtitle" style="margin:0 auto;">কোনো মাসিক বা বার্ষিক চার্জ নেই। একবার পেমেন্ট করুন, আজীবন ব্যবহার করুন।</p>
+    </div>
+    <div class="pricing-card fade-up">
+      <div class="pricing-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>সম্পূর্ণ প্যাকেজ</div>
+      <div class="pricing-label">এককালীন মূল্য</div>
+      <div class="pricing-price">যোগাযোগ করুন</div>
+      <div class="pricing-note">কাস্টম মূল্য — আপনার প্রয়োজন অনুযায়ী পরিকল্পনা</div>
+      <hr class="pricing-divider">
+      <ul class="pricing-features">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>অ্যাডমিন ও স্টুডেন্ট প্যানেল সম্পূর্ণ</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>২টি আলাদা ডেটাবেস (মূল অ্যাপ + পরীক্ষা)</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>বিনামূল্যে হোস্টিং ও ডিপ্লয়মেন্ট</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>২৪/৭ সাপোর্ট সুবিধা</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>PWA — যেকোনো ডিভাইসে ইনস্টলযোগ্য</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>AI Chatbot + WhatsApp ইন্টিগ্রেশন</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>সম্পূর্ণ অ্যান্টি-চিটিং পরীক্ষা সিস্টেম</li>
+      </ul>
+      <a href="#contact" class="pricing-cta">এখনই যোগাযোগ করুন</a>
+    </div>
+  </div>
+</section>
+
+<!-- MOCKUPS SECTION -->
+<section class="demo-section" id="mockups" style="background:var(--section-alt);">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">স্ক্রিনশট প্রিভিউ</p>
+      <h2 class="section-title">অ্যাডমিন ও স্টুডেন্ট প্যানেল দেখুন</h2>
+      <p class="section-subtitle">বাস্তব UI ডিজাইন — দুটি প্যানেলের গুরুত্বপূর্ণ পেজগুলোর mockup।</p>
+      <div class="features-tabs" style="margin-bottom:2rem;">
+        <button class="tab-btn active" onclick="switchMockupTab('admin-mock',event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          অ্যাডমিন <span class="tab-panel-label">ADMIN</span>
+        </button>
+        <button class="tab-btn" onclick="switchMockupTab('student-mock',event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          স্টুডেন্ট <span class="tab-panel-label">STUDENT</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="tab-admin-mock" class="tab-content active">
+      <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Admin Dashboard
+          </div>
+          <div style="padding:1rem;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.75rem;">
+              <div style="background:var(--gray-100); border-radius:8px; padding:0.6rem;"><div style="font-size:1.4rem; font-weight:800; font-family:'Bebas Neue';">245</div><div style="font-size:0.65rem; color:var(--gray-400);">Total Students</div></div>
+              <div style="background:var(--gray-100); border-radius:8px; padding:0.6rem;"><div style="font-size:1.4rem; font-weight:800; font-family:'Bebas Neue'; color:#e53935;">12</div><div style="font-size:0.65rem; color:var(--gray-400);">Pending</div></div>
+              <div style="background:var(--gray-100); border-radius:8px; padding:0.6rem;"><div style="font-size:1.4rem; font-weight:800; font-family:'Bebas Neue';">8</div><div style="font-size:0.65rem; color:var(--gray-400);">Courses</div></div>
+              <div style="background:var(--gray-100); border-radius:8px; padding:0.6rem;"><div style="font-size:1.4rem; font-weight:800; font-family:'Bebas Neue';">156</div><div style="font-size:0.65rem; color:var(--gray-400);">Videos</div></div>
+            </div>
+            <div style="background:var(--gray-100); border-radius:8px; padding:0.6rem; font-size:0.7rem;">
+              <div style="font-weight:600; margin-bottom:0.3rem;">Recent Activity</div>
+              <div style="color:var(--gray-400); font-size:0.65rem;">✅ Karim approved • 📹 New video added • 📝 Exam created</div>
+            </div>
+          </div>
+        </div>
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            User Management
+          </div>
+          <div style="padding:0.75rem;">
+            <div style="display:flex; gap:0.4rem; margin-bottom:0.6rem;">
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:600;">All (245)</div>
+              <div style="background:#fef2f2; border-radius:6px; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:600; color:#e53935;">Pending (12)</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.35rem;">
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.5rem; display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:0.72rem; font-weight:600;">Rahim Ahmed</div><div style="font-size:0.6rem; color:var(--gray-400);">HSC 25 • bKash</div></div><div style="display:flex;gap:0.3rem;"><span style="background:#dcfce7;color:#16a34a;font-size:0.55rem;padding:2px 6px;border-radius:4px;font-weight:600;">Approve</span><span style="background:#fef2f2;color:#dc2626;font-size:0.55rem;padding:2px 6px;border-radius:4px;font-weight:600;">Reject</span></div></div>
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.5rem; display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:0.72rem; font-weight:600;">Fatima Begum</div><div style="font-size:0.6rem; color:var(--gray-400);">HSC 26 • Nagad</div></div><div style="display:flex;gap:0.3rem;"><span style="background:#dcfce7;color:#16a34a;font-size:0.55rem;padding:2px 6px;border-radius:4px;font-weight:600;">Approve</span><span style="background:#fef2f2;color:#dc2626;font-size:0.55rem;padding:2px 6px;border-radius:4px;font-weight:600;">Reject</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            Video + Live Class
+          </div>
+          <div style="padding:0.75rem;">
+            <div style="display:flex; flex-direction:column; gap:0.35rem;">
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.5rem; display:flex; align-items:center; gap:0.6rem;">
+                <div style="width:48px;height:30px;background:var(--gray-200);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="var(--gray-400)"><polygon points="5,3 19,12 5,21"/></svg></div>
+                <div><div style="font-size:0.7rem; font-weight:600;">পদার্থবিজ্ঞান - গতিবিদ্যা</div><div style="font-size:0.6rem; color:var(--gray-400);">HSC 25 • Physics</div></div>
+              </div>
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.5rem; display:flex; align-items:center; gap:0.6rem;">
+                <div style="width:48px;height:30px;background:#fef2f2;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.5rem;font-weight:700;color:#dc2626;">LIVE</div>
+                <div><div style="font-size:0.7rem; font-weight:600;">🔴 রসায়ন লাইভ ক্লাস</div><div style="font-size:0.6rem; color:var(--gray-400);">HSC 25 • Chemistry</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-student-mock" class="tab-content">
+      <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600;">Classroom</div>
+          <div style="padding:0.75rem;">
+            <div style="display:flex; gap:0.35rem; margin-bottom:0.6rem; overflow-x:auto;">
+              <span style="background:var(--black);color:var(--white);font-size:0.65rem;padding:4px 10px;border-radius:100px;font-weight:600;white-space:nowrap;">All</span>
+              <span style="background:var(--gray-100);font-size:0.65rem;padding:4px 10px;border-radius:100px;font-weight:500;white-space:nowrap;">Physics</span>
+              <span style="background:var(--gray-100);font-size:0.65rem;padding:4px 10px;border-radius:100px;font-weight:500;white-space:nowrap;">Chemistry</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem;">
+              <div style="background:var(--gray-100); border-radius:8px; overflow:hidden;"><div style="height:55px; background:var(--gray-200); display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gray-400)"><polygon points="5,3 19,12 5,21"/></svg></div><div style="padding:0.4rem;"><div style="font-size:0.62rem; font-weight:600;">গতিবিদ্যা - ১</div><div style="font-size:0.55rem; color:var(--gray-400);">LMS Pro</div></div></div>
+              <div style="background:var(--gray-100); border-radius:8px; overflow:hidden;"><div style="height:55px; background:linear-gradient(135deg,#fef2f2,#fee2e2); display:flex; align-items:center; justify-content:center;"><span style="background:#dc2626;color:white;font-size:0.5rem;font-weight:700;padding:2px 5px;border-radius:3px;">🔴 LIVE</span></div><div style="padding:0.4rem;"><div style="font-size:0.62rem; font-weight:600;">রসায়ন লাইভ</div><div style="font-size:0.55rem; color:var(--gray-400);">LMS Pro</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600;">Video Player</div>
+          <div style="padding:0;">
+            <div style="background:var(--black); height:110px; display:flex; align-items:center; justify-content:center; position:relative;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><polygon points="5,3 19,12 5,21"/></svg>
+              <div style="position:absolute; bottom:0; left:0; right:0; padding:0.4rem 0.6rem; background:linear-gradient(transparent, rgba(0,0,0,0.8)); display:flex; align-items:center; justify-content:space-between;">
+                <span style="color:rgba(255,255,255,0.6);font-size:0.55rem;">2:34 / 45:12</span>
+                <span style="color:white;font-size:0.55rem;font-weight:600;background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:3px;">1.5x</span>
+              </div>
+            </div>
+            <div style="padding:0.6rem;">
+              <div style="font-size:0.72rem; font-weight:600; margin-bottom:0.4rem;">পদার্থবিজ্ঞান - গতিবিদ্যা</div>
+              <div style="display:flex; gap:0.3rem;">
+                <span style="background:var(--gray-100);font-size:0.6rem;padding:3px 8px;border-radius:5px;">⬅ Previous</span>
+                <span style="background:var(--gray-100);font-size:0.6rem;padding:3px 8px;border-radius:5px;">Next ➡</span>
+                <span style="background:var(--black);color:white;font-size:0.6rem;padding:3px 8px;border-radius:5px;">📄 PDF</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="feature-card fade-up" style="padding:0; overflow:hidden;">
+          <div style="background:var(--black); color:var(--white); padding:0.75rem 1rem; font-size:0.75rem; font-weight:600;">Profile</div>
+          <div style="padding:1rem; text-align:center;">
+            <div style="width:48px;height:48px;background:var(--gray-200);border-radius:50%;margin:0 auto 0.5rem;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div style="font-size:0.8rem; font-weight:700;">Rahim Ahmed</div>
+            <div style="font-size:0.65rem; color:var(--gray-400); margin-bottom:0.6rem;">rahim@gmail.com</div>
+            <div style="display:flex; flex-direction:column; gap:0.3rem; text-align:left;">
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.4rem 0.6rem; font-size:0.65rem; display:flex; justify-content:space-between;"><span style="color:var(--gray-400);">Course</span><span style="font-weight:600;">HSC 2025</span></div>
+              <div style="background:var(--gray-100); border-radius:6px; padding:0.4rem 0.6rem; font-size:0.65rem; display:flex; justify-content:space-between;"><span style="color:var(--gray-400);">Status</span><span style="font-weight:600; color:#16a34a;">Approved</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- USER MANUAL -->
+<section style="background:var(--white); padding:90px 5%;" id="guide">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">ইউজার ম্যানুয়াল</p>
+      <h2 class="section-title">সম্পূর্ণ ব্যবহার নির্দেশিকা</h2>
+      <p class="section-subtitle">অ্যাডমিন এবং স্টুডেন্ট উভয়ের জন্য ধাপে ধাপে গাইড।</p>
+    </div>
+    <div style="margin-top:3rem;">
+      <h3 style="font-family:'Bebas Neue',sans-serif; font-size:1.6rem; letter-spacing:1px; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">
+        <span style="background:var(--black);color:var(--white);width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+        অ্যাডমিন গাইড
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:1rem;">
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">১. প্রথম লগইন ও সেটআপ</div><div class="feature-desc">অ্যাডমিন ইমেইল ও পাসওয়ার্ড দিয়ে লগইন করুন। প্রথমে <strong>Settings</strong> পেজে যান — অ্যাপের নাম, লোগো, পেমেন্ট মেথড ও সোশ্যাল লিংক সেটআপ করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">২. কোর্স তৈরি</div><div class="feature-desc"><strong>Courses</strong> পেজে "Add Course" ক্লিক করুন। কোর্সের নাম, থাম্বনেইল, মূল্য, বিষয় ও চ্যাপ্টার, ইন্সট্রাক্টর ও ডিসকাশন গ্রুপ যোগ করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">৩. ভিডিও আপলোড</div><div class="feature-desc"><strong>Videos → Add</strong> পেজে কোর্স ও সাবজেক্ট সিলেক্ট করুন। YouTube URL, থাম্বনেইল ও PDF দিন। <strong>"🔴 Live Class"</strong> টগল অন করলে লাইভ হিসেবে দেখাবে।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">৪. স্টুডেন্ট অ্যাপ্রুভ</div><div class="feature-desc"><strong>Users</strong> পেজে পেন্ডিং স্টুডেন্টদের পেমেন্ট যাচাই করে Approve/Reject করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">৫. পরীক্ষা তৈরি</div><div class="feature-desc"><strong>Exams → Add</strong> এ MCQ/Written প্রশ্ন, সময়কাল, পাস ও নেগেটিভ মার্ক সেট করুন। নির্ধারিত সময়ে স্বয়ংক্রিয় শুরু/শেষ।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">৬. লাইভ ক্লাস</div><div class="feature-desc">YouTube এ লাইভ শুরু করুন → ভিডিও পেজে URL দিন ও Live টগল অন করুন। লাইভ শেষ হলে রেকর্ডেড হিসেবে থাকবে।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--black);"><div class="feature-title">৭. ব্যাকআপ</div><div class="feature-desc"><strong>Data</strong> পেজে Export/Import করে সম্পূর্ণ ডেটা ব্যাকআপ ও পুনরুদ্ধার করুন।</div></div>
+      </div>
+    </div>
+    <div style="margin-top:4rem;">
+      <h3 style="font-family:'Bebas Neue',sans-serif; font-size:1.6rem; letter-spacing:1px; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">
+        <span style="background:var(--black);color:var(--white);width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+        স্টুডেন্ট গাইড
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:1rem;">
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">১. রেজিস্ট্রেশন</div><div class="feature-desc">কোর্স সিলেক্ট → "Enroll" → নাম, ইমেইল, পাসওয়ার্ড দিন → পেমেন্ট করে ট্রানজেকশন ID/স্ক্রিনশট সাবমিট করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">২. অ্যাপ্রুভাল অপেক্ষা</div><div class="feature-desc">স্ট্যাটাস "Pending" থাকবে। অ্যাডমিন অ্যাপ্রুভ করলে সকল কন্টেন্ট দেখতে পারবেন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৩. ক্লাসরুম</div><div class="feature-desc"><strong>Classroom</strong> পেজে সাবজেক্ট চিপে ক্লিক করে ফিল্টার করুন। ভিডিও কার্ডে ক্লিক করে প্লে করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৪. ভিডিও দেখুন</div><div class="feature-desc">কাস্টম কন্ট্রোল: Play/Pause, ±10s Seek, Speed (1x→2x), Fullscreen। মোবাইলে ডাবল ট্যাপে Seek। PDF বাটনে ক্লাস নোট ডাউনলোড।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৫. লাইভ ক্লাস</div><div class="feature-desc">🔴 LIVE ব্যাজ দেখলে ক্লিক করুন — সরাসরি দেখুন। লাইভ শেষ হলে রেকর্ডেড হিসেবে দেখতে পারবেন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৬. পরীক্ষা</div><div class="feature-desc"><strong>Exams</strong> পেজে চলমান পরীক্ষায় Start করুন। সময় শেষে অটো-সাবমিট। ⚠️ ট্যাব সুইচে অটো-সাবমিট হতে পারে।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৭. প্রোফাইল</div><div class="feature-desc"><strong>Profile</strong> পেজে নাম, ইমেইল দেখুন। পাসওয়ার্ড রিসেট ও Active Course পরিবর্তন করুন।</div></div>
+        <div class="feature-card fade-up" style="border-left:4px solid var(--gray-400);"><div class="feature-title">৮. অ্যাপ ইনস্টল</div><div class="feature-desc">টপ বারে Install বাটনে ক্লিক করুন — Android, iOS, Desktop সবখানে কাজ করবে!</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="demo-section" id="demo">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">লাইভ ডেমো</p>
+      <h2 class="section-title">নিজেই পরীক্ষা করে দেখুন</h2>
+      <p class="section-subtitle">আমাদের লাইভ ডেমোতে প্রবেশ করুন এবং স্টুডেন্ট ও অ্যাডমিন উভয় প্যানেল নিজে অনুভব করুন।</p>
+    </div>
+    <div class="demo-grid">
+      <div>
+        <div class="demo-card fade-up" style="margin-bottom:1.25rem;">
+          <h3>স্টুডেন্ট লগইন</h3>
+          <div class="demo-login-row">
+            <div class="demo-cred-wrap">
+              <div class="demo-cred-inner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span id="student-email">xxx@gmail.com</span>
+              </div>
+              <button class="copy-btn" onclick="copyText('student-email',this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>কপি
+              </button>
+            </div>
+            <div class="demo-cred-wrap">
+              <div class="demo-cred-inner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <span id="student-pass">xxx000</span>
+              </div>
+              <button class="copy-btn" onclick="copyText('student-pass',this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>কপি
+              </button>
+            </div>
+          </div>
+          <a href="https://darpan-academy.netlify.app" target="_blank" class="demo-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            স্টুডেন্ট ডেমো খুলুন
+          </a>
+        </div>
+        <div class="demo-card fade-up">
+          <h3>অ্যাডমিন লগইন</h3>
+          <div class="demo-login-row">
+            <div class="demo-cred-wrap">
+              <div class="demo-cred-inner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span id="admin-email">admin@gmail.com</span>
+              </div>
+              <button class="copy-btn" onclick="copyText('admin-email',this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>কপি
+              </button>
+            </div>
+            <div class="demo-cred-wrap">
+              <div class="demo-cred-inner">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <span id="admin-pass">admin000</span>
+              </div>
+              <button class="copy-btn" onclick="copyText('admin-pass',this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>কপি
+              </button>
+            </div>
+          </div>
+          <a href="https://darpan-academy.netlify.app" target="_blank" class="demo-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            অ্যাডমিন ডেমো খুলুন
+          </a>
+        </div>
+      </div>
+      <div class="demo-features-list fade-up">
+        <div class="demo-feature-item">
+          <div class="demo-feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+          <div class="demo-feature-text"><h4>PWA — যেকোনো ডিভাইসে</h4><p>Android, iOS, Desktop যেকোনো ডিভাইসে অ্যাপ হিসেবে ইনস্টল করা যাবে। কোনো App Store দরকার নেই।</p></div>
+        </div>
+        <div class="demo-feature-item">
+          <div class="demo-feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div>
+          <div class="demo-feature-text"><h4>ডার্ক / লাইট মোড</h4><p>শিক্ষার্থীরা তাদের পছন্দমতো থিম বেছে নিতে পারবে। চোখের আরামে পড়াশোনা করুন।</p></div>
+        </div>
+        <div class="demo-feature-item">
+          <div class="demo-feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div class="demo-feature-text"><h4>AI Chatbot সহায়তা</h4><p>ফ্লোটিং chatbot থেকে স্টুডেন্টরা যেকোনো প্রশ্নের উত্তর পাবে। সরাসরি WhatsApp-এ যোগাযোগের সুবিধাও রয়েছে।</p></div>
+        </div>
+        <div class="demo-feature-item">
+          <div class="demo-feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div>
+          <div class="demo-feature-text"><h4>অ্যাপ শেয়ার অপশন</h4><p>শিক্ষার্থীরা সহজে অ্যাপ শেয়ার করে বন্ধুদের জানাতে পারবে। ভাইরাল মার্কেটিং স্বয়ংক্রিয়ভাবে হবে।</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact-section" id="contact">
+  <div class="container">
+    <div class="fade-up">
+      <p class="section-tag">যোগাযোগ</p>
+      <h2 class="section-title">আজই শুরু করুন</h2>
+      <p class="section-subtitle">আপনার প্রশ্ন বা অর্ডারের জন্য সরাসরি WhatsApp বার্তা পাঠান।</p>
+    </div>
+    <div class="contact-grid">
+      <div class="contact-info fade-up">
+        <h3>সরাসরি যোগাযোগ করুন</h3>
+        <p>আপনার LMS প্ল্যাটফর্ম সম্পর্কে যেকোনো প্রশ্ন, কাস্টমাইজেশন অনুরোধ বা মূল্য জানতে নিচের মাধ্যমে যোগাযোগ করুন।</p>
+        <div class="contact-links">
+          <a href="https://wa.me/8801712525910" target="_blank" class="contact-link-item">
+            <div class="contact-link-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
+            <div><div class="contact-link-label">WhatsApp / Call</div><div class="contact-link-val">+880 1712-525910</div></div>
+          </a>
+          <a href="https://facebook.com/ridoan.zisan" target="_blank" class="contact-link-item">
+            <div class="contact-link-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></div>
+            <div><div class="contact-link-label">Facebook</div><div class="contact-link-val">ridoan.zisan</div></div>
+          </a>
+          <a href="mailto:ridoanzisan@gmail.com" class="contact-link-item">
+            <div class="contact-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+            <div><div class="contact-link-label">Gmail</div><div class="contact-link-val">ridoanzisan@gmail.com</div></div>
+          </a>
+        </div>
+      </div>
+      <div class="whatsapp-form-box fade-up">
+        <h3>WhatsApp বার্তা</h3>
+        <p>নিচে আপনার বার্তা লিখুন। সেন্ড বাটনে ক্লিক করলে সরাসরি WhatsApp-এ পাঠানো হবে।</p>
+        <div class="form-group">
+          <label>আপনার নাম</label>
+          <input type="text" id="wa-name" placeholder="আপনার নাম লিখুন">
+        </div>
+        <div class="form-group">
+          <label>বার্তা</label>
+          <textarea id="wa-message" placeholder="আপনার বার্তা লিখুন..."></textarea>
+        </div>
+        <button class="whatsapp-send-btn" onclick="sendWhatsApp()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          WhatsApp-এ পাঠান
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->  
+<footer>  
+  <div class="footer-inner">  
+    <a href="#" class="footer-logo">LMS<span>PRO</span></a>  
+    <p class="footer-text">Developed by 
+      <a href="https://ridoan-zisan.netlify.app" target="_blank" class="footer-dev-name">
+        Md Ridoan Mahmud Zisan
+      </a>
+    </p>  
+  </div>  
+</footer>
+
+<script>
+  /* ── COPY (with execCommand fallback) ── */
+  function copyText(id, btn) {
+    var text = document.getElementById(id).innerText.trim();
+    var ic = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    var ok = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="20 6 9 17 4 12"/></svg>';
+    function done() {
+      btn.classList.add('copied');
+      btn.innerHTML = ok + ' হয়েছে';
+      setTimeout(function(){ btn.classList.remove('copied'); btn.innerHTML = ic + 'কপি'; }, 2000);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fb);
+    } else { fb(); }
+    function fb() {
+      var t = document.createElement('textarea');
+      t.value = text; t.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+      document.body.appendChild(t); t.focus(); t.select();
+      try { document.execCommand('copy'); done(); } catch(e){}
+      document.body.removeChild(t);
+    }
+  }
+
+  /* ── MOBILE MENU ── */
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  /* ── TABS ── */
+  function switchTab(tab, e) {
+    document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    document.getElementById('tab-'+tab).classList.add('active');
+    if (e && e.currentTarget) e.currentTarget.classList.add('active');
+  }
+
+  /* ── MOCKUP TABS ── */
+  function switchMockupTab(tab, e) {
+    var parent = e.currentTarget.closest('.container');
+    parent.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    parent.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    document.getElementById('tab-'+tab).classList.add('active');
+    if (e && e.currentTarget) e.currentTarget.classList.add('active');
+  }
+
+  /* ── WHATSAPP ── */
+  function sendWhatsApp() {
+    var name = document.getElementById('wa-name').value.trim();
+    var msg = document.getElementById('wa-message').value.trim();
+    if (!msg) { alert('অনুগ্রহ করে একটি বার্তা লিখুন।'); return; }
+    window.open('https://wa.me/8801712525910?text=' + encodeURIComponent(name ? 'নাম: '+name+'\n\n'+msg : msg), '_blank');
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  var obs = new IntersectionObserver(function(en){
+    en.forEach(function(e){ if(e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+  document.querySelectorAll('.fade-up').forEach(function(el){ obs.observe(el); });
+  setTimeout(function(){ document.querySelectorAll('.fade-up').forEach(function(el){ el.classList.add('visible'); }); }, 500);
+</script>
+</body>
+</html>

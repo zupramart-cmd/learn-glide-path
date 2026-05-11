@@ -1,10 +1,8 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { UserDoc } from "@/types";
-import { registerSession, isSessionValid, removeSession, clearLocalSessionId } from "@/lib/sessionManager";
-import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
@@ -25,13 +23,10 @@ export function useAuth() {
   return ctx;
 }
 
-const SESSION_CHECK_INTERVAL = 60_000; // check every 60 seconds
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
-  const sessionCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchUserDoc = async (uid: string) => {
     const snap = await getDoc(doc(db, "users", uid));
@@ -42,36 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const forceLogout = async () => {
-    clearLocalSessionId();
-    await signOut(auth);
-    setUser(null);
-    setUserDoc(null);
-    toast.error("অন্য ডিভাইস থেকে লগইন করায় এই সেশন বন্ধ হয়ে গেছে।");
-  };
-
-  // Periodically check if session is still valid
-  const startSessionCheck = (uid: string) => {
-    stopSessionCheck();
-    sessionCheckRef.current = setInterval(async () => {
-      try {
-        const valid = await isSessionValid(uid);
-        if (!valid) {
-          await forceLogout();
-        }
-      } catch (_) {
-        // ignore network errors during check
-      }
-    }, SESSION_CHECK_INTERVAL);
-  };
-
-  const stopSessionCheck = () => {
-    if (sessionCheckRef.current) {
-      clearInterval(sessionCheckRef.current);
-      sessionCheckRef.current = null;
-    }
-  };
-
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -79,22 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchUserDoc(u.uid);
       } else {
         setUserDoc(null);
-        stopSessionCheck();
       }
       setLoading(false);
     });
-    return () => {
-      unsub();
-      stopSessionCheck();
-    };
+    return () => unsub();
   }, []);
 
   const login = async (email: string, password: string) => {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    await fetchUserDoc(cred.user.uid);
-    // Register session (will invalidate old sessions if 3rd device)
-    await registerSession(cred.user.uid);
-    startSessionCheck(cred.user.uid);
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will fetchUserDoc
   };
 
   const register = async (email: string, password: string, name: string) => {
@@ -111,17 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     await setDoc(doc(db, "users", cred.user.uid), newUser);
     setUserDoc(newUser);
-    // Register session for new user too
-    await registerSession(cred.user.uid);
-    startSessionCheck(cred.user.uid);
     return cred.user.uid;
   };
 
   const logout = async () => {
-    if (user) {
-      await removeSession(user.uid);
-    }
-    stopSessionCheck();
     await signOut(auth);
     setUserDoc(null);
   };

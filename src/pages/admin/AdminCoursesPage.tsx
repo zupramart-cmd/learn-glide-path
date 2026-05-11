@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
 import { Course, Subject, Instructor, DiscussionGroup, Chapter } from "@/types";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronLeft, GripVertical, BookOpen, Users, MessageSquare, FileText, Link2, Image } from "lucide-react";
@@ -41,6 +42,7 @@ export default function AdminCoursesPage() {
   const [courseName, setCourseName] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [price, setPrice] = useState(0);
+  
   const [overview, setOverview] = useState<string[]>([""]);
   const [subjects, setSubjects] = useState<Subject[]>([{ subjectId: crypto.randomUUID(), subjectName: "", chapters: [] }]);
   const [instructors, setInstructors] = useState<Instructor[]>([{ name: "", subject: "", image: "" }]);
@@ -50,8 +52,8 @@ export default function AdminCoursesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCourses = async () => {
-    const snap = await getDocs(collection(db, "courses"));
-    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Course));
+    invalidateCache("courses");
+    const list = await getCachedCollection<Course>(db, "courses");
     list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
     setCourses(list);
     setLoading(false);
@@ -74,7 +76,8 @@ export default function AdminCoursesPage() {
     setOverview(c.overview?.length ? c.overview : [""]); setSubjects(c.subjects?.length ? c.subjects : [{ subjectId: crypto.randomUUID(), subjectName: "", chapters: [] }]);
     setInstructors(c.instructors?.length ? c.instructors : [{ name: "", subject: "", image: "" }]);
     setDiscussionGroups(c.discussionGroups?.length ? c.discussionGroups : [{ name: "", link: "" }]);
-    setRoutinePDF(c.routinePDF || ""); setAllMaterialsLink(c.allMaterialsLink || ""); setShowForm(true);
+    setRoutinePDF(c.routinePDF || ""); setAllMaterialsLink(c.allMaterialsLink || "");
+    setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

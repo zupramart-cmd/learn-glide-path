@@ -37,7 +37,7 @@ export function TopNav({ onMenuClick, hideMenu }: Props) {
           {settings.appLogo && (
             <img src={settings.appLogo} alt="" className="h-7 w-7 rounded-md object-contain" />
           )}
-          <h1 className="text-lg font-semibold text-foreground">{settings.appName || "Darpan Academy"}</h1>
+          <h1 className="text-lg font-semibold text-foreground">{settings.appName || "LMS"}</h1>
         </div>
         <div className="flex items-center gap-1">
           {installPrompt && (

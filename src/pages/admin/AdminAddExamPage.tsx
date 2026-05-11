@@ -80,14 +80,7 @@ export default function AdminAddExamPage() {
     }]);
   };
 
-  const addWrittenQuestion = () => {
-    setQuestions([...questions, {
-      id: Date.now().toString(),
-      questionText: "",
-      type: "written",
-      marks: 1,
-    }]);
-  };
+  // Written exam type removed — only MCQ supported.
 
   const updateQuestion = (idx: number, updates: Partial<ExamQuestion>) => {
     const updated = [...questions];
@@ -132,31 +125,46 @@ export default function AdminAddExamPage() {
     }
   };
 
-  const downloadTemplate = (format: "json" | "csv") => {
-    if (format === "json") {
-      const template = [
-        { question: "What is 2+2?", questionImage: "", type: "mcq", option1: "3", option1Image: "", option2: "4", option2Image: "", option3: "5", option3Image: "", option4: "6", option4Image: "", correct: 1, marks: 1 },
-        { question: "Describe photosynthesis", questionImage: "", type: "written", option1: "", option1Image: "", option2: "", option2Image: "", option3: "", option3Image: "", option4: "", option4Image: "", correct: 0, marks: 5 },
-      ];
-      const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = "exam_template.json"; a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      const csv = `question,questionImage,type,option1,option1Image,option2,option2Image,option3,option3Image,option4,option4Image,correct,marks
-"What is 2+2?","","mcq","3","","4","","5","","6","",1,1
-"Describe photosynthesis","","written","","","","","","","","",0,5`;
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = "exam_template.csv"; a.click();
-      URL.revokeObjectURL(url);
-    }
-    toast.success(`${format.toUpperCase()} template downloaded`);
+  const downloadTemplate = () => {
+    const template = [
+      {
+        question: "What is 2+2?",
+        questionImage: "",
+        type: "mcq",
+        option1: "3", option1Image: "",
+        option2: "4", option2Image: "",
+        option3: "5", option3Image: "",
+        option4: "6", option4Image: "",
+        correct: 1,
+        marks: 1
+      },
+      {
+        question: "Which planet is closest to the Sun?",
+        questionImage: "",
+        type: "mcq",
+        option1: "Venus", option1Image: "",
+        option2: "Earth", option2Image: "",
+        option3: "Mercury", option3Image: "",
+        option4: "Mars", option4Image: "",
+        correct: 2,
+        marks: 1
+      },
+    ];
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "exam_template.json"; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("JSON template downloaded");
   };
 
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.name.endsWith(".json")) {
+      toast.error("Only JSON files are supported");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -165,48 +173,22 @@ export default function AdminAddExamPage() {
         if (file.name.endsWith(".json")) {
           parsed = JSON.parse(text);
         } else {
-          const lines = text.split("\n").filter(l => l.trim());
-          const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ''));
-          parsed = lines.slice(1).map(line => {
-            const values: string[] = [];
-            let current = '', inQuotes = false;
-            for (const char of line) {
-              if (char === '"') { inQuotes = !inQuotes; }
-              else if (char === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
-              else { current += char; }
-            }
-            values.push(current.trim());
-            const obj: any = {};
-            headers.forEach((h, i) => obj[h] = values[i] || "");
-            return obj;
-          });
+          parsed = [];
         }
-        const newQuestions: ExamQuestion[] = parsed.map((item, idx) => {
-          const qType = (item.type || "mcq").toLowerCase();
-          if (qType === "written") {
-            return {
-              id: (Date.now() + idx).toString(),
-              questionText: item.question || item.questionText || "",
-              questionImage: item.questionImage || "",
-              type: "written" as const,
-              marks: parseInt(item.marks || "1"),
-            };
-          }
-          return {
-            id: (Date.now() + idx).toString(),
-            questionText: item.question || item.questionText || "",
-            questionImage: item.questionImage || "",
-            type: "mcq" as const,
-            options: [
-              { text: item.option1 || item.a || "", image: item.option1Image || "" },
-              { text: item.option2 || item.b || "", image: item.option2Image || "" },
-              { text: item.option3 || item.c || "", image: item.option3Image || "" },
-              { text: item.option4 || item.d || "", image: item.option4Image || "" },
-            ].filter(o => o.text),
-            correctAnswer: parseInt(item.correct || item.correctAnswer || "0"),
-            marks: parseInt(item.marks || "1"),
-          };
-        });
+        const newQuestions: ExamQuestion[] = parsed.map((item, idx) => ({
+          id: (Date.now() + idx).toString(),
+          questionText: item.question || item.questionText || "",
+          questionImage: item.questionImage || "",
+          type: "mcq" as const,
+          options: [
+            { text: item.option1 || item.a || "", image: item.option1Image || "" },
+            { text: item.option2 || item.b || "", image: item.option2Image || "" },
+            { text: item.option3 || item.c || "", image: item.option3Image || "" },
+            { text: item.option4 || item.d || "", image: item.option4Image || "" },
+          ].filter(o => o.text),
+          correctAnswer: parseInt(item.correct || item.correctAnswer || "0"),
+          marks: parseInt(item.marks || "1"),
+        }));
         setQuestions(prev => [...prev, ...newQuestions]);
         toast.success(`${newQuestions.length} questions imported`);
       } catch {
@@ -223,13 +205,9 @@ export default function AdminAddExamPage() {
     }
     setSaving(true);
     const totalMarks = questions.reduce((s, q) => s + q.marks, 0);
-    // Determine exam type based on questions
-    const hasMcq = questions.some(q => q.type === "mcq");
-    const hasWritten = questions.some(q => q.type === "written");
-    const type = hasMcq && hasWritten ? "mcq" : hasWritten ? "written" : "mcq";
-    
+
     const data = {
-      title, courseId, courseName: selectedCourse?.courseName || "", type,
+      title, courseId, courseName: selectedCourse?.courseName || "", type: "mcq" as const,
       duration, totalMarks, negativeMark, passMark,
       startTime: Timestamp.fromDate(new Date(startTime)),
       endTime: Timestamp.fromDate(new Date(endTime)),
@@ -314,21 +292,45 @@ export default function AdminAddExamPage() {
         {/* Questions */}
         <FormSection icon={FileText} title={`Questions (${questions.length})`} step={4}>
           {/* Bulk import */}
-          <div className="bg-accent/50 border border-dashed border-border rounded-xl p-4">
-            <p className="text-sm font-medium text-foreground mb-2">Bulk Import Questions</p>
-            <p className="text-xs text-muted-foreground mb-3">Download template, add questions, then upload.</p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button onClick={() => downloadTemplate("json")} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors">
-                <Download className="h-3 w-3" /> JSON
-              </button>
-              <button onClick={() => downloadTemplate("csv")} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors">
-                <Download className="h-3 w-3" /> CSV
-              </button>
+          <div className="rounded-xl border border-dashed border-primary/30 bg-gradient-to-br from-primary/5 to-accent/30 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-primary/10 bg-primary/5">
+              <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
+                <Upload className="h-3 w-3 text-primary" />
+              </div>
+              <span className="text-xs font-semibold text-primary uppercase tracking-wide">Bulk Import via JSON</span>
             </div>
-            <input ref={fileRef} type="file" accept=".json,.csv" onChange={handleBulkUpload} className="hidden" />
-            <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium w-full justify-center">
-              <Upload className="h-3.5 w-3.5" /> Upload Questions File
-            </button>
+            <div className="p-4 space-y-3">
+              {/* Info card */}
+              <div className="flex items-start gap-2.5 bg-background/60 rounded-lg p-3 border border-border/50">
+                <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">কোশ্চেন টেমপ্লেট ডাউনলোড করে <span className="text-primary font-semibold">Claude AI</span> দিয়ে বাল্ক কোশ্চেন বানিয়ে নিন ও এখানে ইমপোর্ট করুন।</p>
+                </div>
+              </div>
+              {/* Side-by-side action buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={downloadTemplate}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 bg-card border border-border rounded-xl text-xs font-semibold text-foreground hover:bg-accent hover:border-primary/40 transition-all group shadow-sm"
+                >
+                  <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
+                    <Download className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <span>Download Template</span>
+                </button>
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm active:scale-[0.98]"
+                >
+                  <div className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center shrink-0">
+                    <Upload className="h-3.5 w-3.5" />
+                  </div>
+                  <span>Import Questions</span>
+                </button>
+              </div>
+              <input ref={fileRef} type="file" accept=".json" onChange={handleBulkUpload} className="hidden" />
+            </div>
           </div>
 
           {/* Questions list */}
@@ -350,10 +352,7 @@ export default function AdminAddExamPage() {
 
           <div className="flex gap-2">
             <button onClick={addMCQQuestion} className="flex-1 flex items-center gap-1.5 px-4 py-2.5 bg-accent border border-dashed border-border rounded-xl text-sm font-medium text-foreground justify-center hover:bg-accent/80 transition-colors">
-              <Plus className="h-4 w-4" /> MCQ Question
-            </button>
-            <button onClick={addWrittenQuestion} className="flex-1 flex items-center gap-1.5 px-4 py-2.5 bg-accent border border-dashed border-border rounded-xl text-sm font-medium text-foreground justify-center hover:bg-accent/80 transition-colors">
-              <Plus className="h-4 w-4" /> Written Question
+              <Plus className="h-4 w-4" /> Add MCQ Question
             </button>
           </div>
         </FormSection>
@@ -361,9 +360,7 @@ export default function AdminAddExamPage() {
         {/* Summary */}
         <div className="bg-accent/30 border border-border rounded-xl p-3">
           <p className="text-xs text-muted-foreground">
-            Total: <span className="text-foreground font-medium">{questions.length} Q</span> •
-            MCQ: <span className="text-foreground font-medium">{questions.filter(q => q.type === "mcq").length}</span> •
-            Written: <span className="text-foreground font-medium">{questions.filter(q => q.type === "written").length}</span> •
+            Total: <span className="text-foreground font-medium">{questions.length} MCQ</span> •
             Marks: <span className="text-foreground font-medium">{questions.reduce((s, q) => s + q.marks, 0)}</span> •
             Pass: <span className="text-foreground font-medium">{passMark}</span>
           </p>
@@ -399,8 +396,8 @@ function QuestionEditor({ question, index, onUpdate, onRemove, onUpdateOption, o
           {collapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
         </button>
         <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">{index + 1}</span>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold shrink-0 ${isMcq ? "bg-primary/10 text-primary" : "bg-accent text-muted-foreground border border-border"}`}>
-          {isMcq ? "MCQ" : "Written"}
+        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold shrink-0 bg-primary/10 text-primary">
+          MCQ
         </span>
         <div className="flex-1" />
         <div className="flex items-center gap-1 shrink-0">
@@ -415,17 +412,41 @@ function QuestionEditor({ question, index, onUpdate, onRemove, onUpdateOption, o
         <div className="p-3 space-y-2.5">
           <textarea value={question.questionText} onChange={e => onUpdate({ questionText: e.target.value })} placeholder="Enter question text" rows={2} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
           
-          <ImageUrlField value={question.questionImage || ""} onChange={(v) => onUpdate({ questionImage: v })} placeholder="Question image URL (optional)" />
-          {question.questionImage && <img src={question.questionImage} alt="" className="h-20 rounded-lg object-contain" />}
+          {isMcq && (
+            <>
+              <ImageUrlField value={question.questionImage || ""} onChange={(v) => onUpdate({ questionImage: v })} placeholder="Question image URL (optional)" />
+              {question.questionImage && <img src={question.questionImage} alt="" className="h-20 rounded-lg object-contain" />}
+            </>
+          )}
 
           {isMcq && question.options && (
             <div className="space-y-2 mt-1">
               <p className="text-xs text-muted-foreground font-medium">Options (select correct):</p>
               {question.options.map((opt, oIdx) => (
-                <div key={oIdx} className="flex items-start gap-2">
-                  <input type="radio" name={`correct-${question.id}`} checked={question.correctAnswer === oIdx} onChange={() => onUpdate({ correctAnswer: oIdx })} className="mt-2.5 accent-primary shrink-0" />
+                <div
+                  key={oIdx}
+                  onClick={() => onUpdate({ correctAnswer: oIdx })}
+                  className={`flex items-start gap-2 rounded-lg px-2 py-1 cursor-pointer transition-all border ${
+                    question.correctAnswer === oIdx
+                      ? "bg-green-500/15 dark:bg-green-500/20 border-green-500/50 dark:border-green-400/60"
+                      : "border-transparent hover:bg-accent/60"
+                  }`}
+                >
+                  <div className={`mt-2.5 shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                    question.correctAnswer === oIdx
+                      ? "border-green-500 dark:border-green-400 bg-green-500 dark:bg-green-400"
+                      : "border-muted-foreground/40 bg-background"
+                  }`}>
+                    {question.correctAnswer === oIdx && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0 space-y-1">
-                    <input value={opt.text} onChange={e => onUpdateOption(oIdx, e.target.value)} placeholder={`Option ${oIdx + 1}`} className="w-full px-3 py-1.5 rounded-lg bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                    <input value={opt.text} onChange={e => { e.stopPropagation(); onUpdateOption(oIdx, e.target.value); }} onClick={e => e.stopPropagation()} placeholder={`Option ${oIdx + 1}`} className={`w-full px-3 py-1.5 rounded-lg bg-background border text-foreground text-sm focus:outline-none focus:ring-2 transition-all ${
+                      question.correctAnswer === oIdx
+                        ? "border-green-500/40 dark:border-green-400/40 focus:ring-green-500/20 focus:border-green-500/60"
+                        : "border-border focus:ring-primary/30 focus:border-primary"
+                    }`} />
                     <ImageUrlField value={opt.image || ""} onChange={(v) => onUpdateOptionImage(oIdx, v)} placeholder="Option image URL" small />
                     {opt.image && <img src={opt.image} alt="" className="h-12 rounded-lg object-contain" />}
                   </div>
@@ -437,32 +458,13 @@ function QuestionEditor({ question, index, onUpdate, onRemove, onUpdateOption, o
               <button onClick={onAddOption} className="text-xs text-primary hover:underline ml-5">+ Add Option</button>
             </div>
           )}
-
-          {!isMcq && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground italic">Written question — students will upload their answer as an image.</p>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">সঠিক উত্তর (টেক্সট বা ইমেজ URL)</label>
-                <textarea 
-                  value={question.writtenAnswer || ""} 
-                  onChange={e => onUpdate({ writtenAnswer: e.target.value })} 
-                  placeholder="সঠিক উত্তর লিখুন অথবা ইমেজ URL দিন" 
-                  rows={2} 
-                  className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" 
-                />
-                {question.writtenAnswer?.startsWith("http") && (
-                  <img src={question.writtenAnswer} alt="Answer preview" className="h-20 rounded-lg object-contain mt-2" />
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-/* ── Image URL Field with toggle ── */
+/* ── Image URL Field with toggle (MCQ / options) ── */
 function ImageUrlField({ value, onChange, placeholder, small }: {
   value: string; onChange: (v: string) => void; placeholder: string; small?: boolean;
 }) {
@@ -478,21 +480,22 @@ function ImageUrlField({ value, onChange, placeholder, small }: {
   }
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-      <Image className={`${small ? "h-3 w-3" : "h-3.5 w-3.5"} text-muted-foreground shrink-0`} />
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className={`flex-1 min-w-0 px-3 ${small ? "py-1" : "py-1.5"} rounded-lg bg-background border border-border text-foreground ${small ? "text-xs" : "text-sm"} focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all`}
-      />
-      <div className="flex items-center gap-1 shrink-0">
-        <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="p-1 hover:bg-destructive/10 text-destructive/60 hover:text-destructive rounded-lg transition-colors">
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <Image className={`${small ? "h-3 w-3" : "h-3.5 w-3.5"} text-muted-foreground shrink-0`} />
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          className={`flex-1 min-w-0 px-3 ${small ? "py-1" : "py-1.5"} rounded-lg bg-background border border-border text-foreground ${small ? "text-xs" : "text-sm"} focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all`}
+        />
+        <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="p-1 hover:bg-destructive/10 text-destructive/60 hover:text-destructive rounded-lg transition-colors shrink-0">
           <X className="h-3 w-3" />
         </button>
-        <a href="https://postimages.org" target="_blank" rel="noopener noreferrer"
-          className={`flex items-center gap-1 px-2 ${small ? "py-0.5" : "py-1"} bg-accent border border-border rounded-lg ${small ? "text-[10px]" : "text-xs"} font-medium text-primary hover:bg-accent/80 transition-colors whitespace-nowrap`}
-        >
-          <ExternalLink className={`${small ? "h-2.5 w-2.5" : "h-3 w-3"}`} /> Get URL
-        </a>
       </div>
+      <a href="https://postimages.org" target="_blank" rel="noopener noreferrer"
+        className={`inline-flex items-center gap-1 px-2.5 ${small ? "py-1" : "py-1.5"} ml-5 bg-accent border border-border rounded-lg ${small ? "text-[10px]" : "text-xs"} font-medium text-primary hover:bg-primary/10 hover:border-primary/30 transition-colors`}
+      >
+        <ExternalLink className={`${small ? "h-2.5 w-2.5" : "h-3 w-3"}`} /> Get URL
+      </a>
     </div>
   );
 }
+

@@ -1,15 +1,14 @@
 import { Timestamp } from "firebase/firestore";
 
-export type ExamType = "mcq" | "written";
+export type ExamType = "mcq";
 
 export interface ExamQuestion {
   id: string;
   questionText: string;
   questionImage?: string;
-  type: ExamType;
-  options?: { text: string; image?: string }[];
-  correctAnswer?: number; // index for MCQ
-  writtenAnswer?: string; // correct answer text/image URL for written questions
+  type?: ExamType;
+  options: { text: string; image?: string }[];
+  correctAnswer: number;
   marks: number;
 }
 
@@ -17,14 +16,13 @@ export interface Exam {
   id: string;
   courseId: string;
   courseName: string;
-  title: string;
-  type: ExamType;
   duration: number; // minutes
   totalMarks: number;
-  negativeMark: number; // marks deducted per wrong answer
-  passMark: number; // minimum marks to pass
+  negativeMark: number;
+  passMark: number;
   startTime: Timestamp;
   endTime: Timestamp;
+  title: string;
   questions: ExamQuestion[];
   resultPublished?: boolean;
   createdAt: Timestamp;
@@ -44,15 +42,13 @@ export interface ExamSubmission {
   wrongCount: number;
   submittedAt: Timestamp;
   passed?: boolean;
-  writtenGraded?: boolean;
-  writtenMarks?: number;
+  rank?: number;
+  deviceInfo?: Record<string, any>;
 }
 
 export interface ExamAnswer {
   questionId: string;
-  selectedOption?: number; // for MCQ
-  writtenImageUrl?: string; // for written
+  selectedOption?: number;
   isCorrect?: boolean;
   marks: number;
-  writtenMarksAwarded?: number; // marks given by admin for written
 }

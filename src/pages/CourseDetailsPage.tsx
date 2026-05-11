@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Course } from "@/types";
-import { FileText, Users, Clock, BookOpen, MessageSquare, ExternalLink, Lock, ClipboardList, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { getCachedDoc } from "@/lib/firestoreCache";
+import { FolderOpen, Users, Clock, BookOpen, MessageSquare, ExternalLink, Lock, Timer, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { CourseDetailsSkeleton } from "@/components/skeletons/CourseDetailsSkeleton";
 import { FloatingButtons } from "@/components/FloatingButtons";
 
@@ -21,8 +22,8 @@ export default function CourseDetailsPage() {
   useEffect(() => {
     const fetchData = async () => {
       if (!courseId) return;
-      const snap = await getDoc(doc(db, "courses", courseId));
-      if (snap.exists()) setCourse({ id: snap.id, ...snap.data() } as Course);
+      const cached = await getCachedDoc<Course>(db, "courses", courseId);
+      if (cached) setCourse(cached);
       
       if (user) {
         const q = query(collection(db, "enrollRequests"), where("userId", "==", user.uid), where("courseId", "==", courseId));
@@ -179,7 +180,7 @@ export default function CourseDetailsPage() {
               {course.allMaterialsLink && (
                 <a href={course.allMaterialsLink} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl text-sm font-medium text-foreground hover:bg-primary/10 transition-colors">
-                  <FileText className="h-5 w-5 text-primary" />
+                  <FolderOpen className="h-5 w-5 text-primary" />
                   <span className="flex-1">All Materials</span>
                   <ExternalLink className="h-4 w-4 text-primary" />
                 </a>
@@ -200,7 +201,7 @@ export default function CourseDetailsPage() {
 
               <Link to="/exams"
                 className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl text-sm font-medium text-foreground hover:bg-primary/10 transition-colors">
-                <ClipboardList className="h-5 w-5 text-primary" />
+                <Timer className="h-5 w-5 text-primary" />
                 <span className="flex-1">Exams</span>
               </Link>
             </div>
@@ -214,7 +215,7 @@ export default function CourseDetailsPage() {
           {/* Enroll / Start CTA */}
           <div className="pt-2 pb-4">
             {isEnrolled && isApproved ? (
-              <Link to="/my-courses" className="block w-full text-center px-6 py-3.5 text-sm font-semibold rounded-xl bg-success text-success-foreground shadow-sm hover:opacity-90 transition-opacity">
+              <Link to="/content" className="block w-full text-center px-6 py-3.5 text-sm font-semibold rounded-xl bg-success text-success-foreground shadow-sm hover:opacity-90 transition-opacity">
                 ✅ Start Course
               </Link>
             ) : isPending ? (
@@ -230,7 +231,7 @@ export default function CourseDetailsPage() {
         </div>
       </div>
 
-      <FloatingButtons course={course} />
+      <FloatingButtons />
     </div>
   );
 }

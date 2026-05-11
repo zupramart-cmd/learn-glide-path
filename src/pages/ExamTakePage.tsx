@@ -1,21 +1,79 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, addDoc, collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import {
+  doc, getDoc, addDoc, collection, getDocs, query, where,
+  setDoc, Timestamp, runTransaction,
+} from "firebase/firestore";
 import { examDb } from "@/lib/examFirebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Exam, ExamAnswer, ExamSubmission } from "@/types/exam";
 import { uploadToImgBB } from "@/lib/imgbb";
 import { toast } from "sonner";
-import { Camera, Clock, ChevronLeft, ChevronRight, Send, Trophy, CheckCircle, XCircle, ArrowLeft, Award, TrendingDown } from "lucide-react";
+import {
+  Camera, Clock, ChevronLeft, ChevronRight, Send, Trophy, CheckCircle, XCircle,
+  ArrowLeft, Award, TrendingDown, Shield, AlertTriangle, Monitor, Maximize, ZoomIn,
+  BookOpen, FileText, Users, Timer, Star, MinusCircle,
+} from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useExamSecurity, getDeviceInfo } from "@/hooks/useExamSecurity";
+import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
+
+// ─── localStorage cache helpers ──────────────────────────────────────────────
+// Exam questions cache (2 hour TTL) — Firebase read বাঁচায়
+const EXAM_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
+
+function getCachedExam(examId: string): Exam | null {
+  try {
+    const raw = localStorage.getItem(`exam_cache_${examId}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > EXAM_CACHE_TTL) {
+      localStorage.removeItem(`exam_cache_${examId}`);
+      return null;
+    }
+    // Firestore Timestamp fields (startTime/endTime) plain object হিসেবে stored থাকে,
+    // তাই toMillis() wrapper দিয়ে restore করি।
+    if (data.startTime && typeof data.startTime === "object" && "_seconds" in data.startTime) {
+      data.startTime = { toMillis: () => data.startTime._seconds * 1000, toDate: () => new Date(data.startTime._seconds * 1000) };
+    }
+    if (data.endTime && typeof data.endTime === "object" && "_seconds" in data.endTime) {
+      data.endTime = { toMillis: () => data.endTime._seconds * 1000, toDate: () => new Date(data.endTime._seconds * 1000) };
+    }
+    return data as Exam;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedExam(examId: string, exam: Exam) {
+  try {
+    // Timestamp objects JSON-safe বানাই
+    const serializable = {
+      ...exam,
+      startTime: exam.startTime ? { _seconds: exam.startTime.toMillis() / 1000 } : null,
+      endTime: exam.endTime ? { _seconds: exam.endTime.toMillis() / 1000 } : null,
+    };
+    localStorage.setItem(
+      `exam_cache_${examId}`,
+      JSON.stringify({ data: serializable, ts: Date.now() })
+    );
+  } catch {
+    // localStorage full হলে ignore
+  }
+}
+
+// ─── Submission cache (session-only, per user+exam) ──────────────────────────
+// Page reload করলে Firestore থেকে আবার চেক করবে, কিন্তু same session-এ করবে না।
+const submissionSessionCache = new Map<string, ExamSubmission | null>();
 
 export default function ExamTakePage() {
   const { examId } = useParams<{ examId: string }>();
   const { user, userDoc } = useAuth();
   const navigate = useNavigate();
+
   const [exam, setExam] = useState<Exam | null>(null);
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, ExamAnswer>>({});
@@ -27,41 +85,108 @@ export default function ExamTakePage() {
   const [result, setResult] = useState<ExamSubmission | null>(null);
   const [existingSubmission, setExistingSubmission] = useState<ExamSubmission | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [rankings, setRankings] = useState<ExamSubmission[]>([]);
-  const [showRankings, setShowRankings] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [totalParticipants, setTotalParticipants] = useState(0);
+  const [rankLoading, setRankLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [examEntered, setExamEntered] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const cameraRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const submittedRef = useRef(false);
 
+  const hasMcqQuestions = true;
+
+  const handleSuspiciousAutoSubmit = useCallback(() => {
+    if (submittedRef.current) return;
+    toast.error("⚠️ ট্যাব সুইচের কারণে পরীক্ষা অটো-সাবমিট হচ্ছে!");
+    handleSubmitInternal();
+  }, []);
+
+  const handleFullscreenExitConfirm = useCallback(() => {
+    if (submittedRef.current) return;
+    setShowExitConfirm(true);
+  }, []);
+
+  const { requestFullscreen, exitFullscreen, isFullscreen } = useExamSecurity({
+    enabled: started && !submitted,
+    onSuspiciousActivity: handleSuspiciousAutoSubmit,
+    onFullscreenExit: handleFullscreenExitConfirm,
+    maxTabSwitches: 2,
+  });
+
+  // ─── Load exam (cache-first) + check existing submission ─────────────────
   useEffect(() => {
-    const fetchExam = async () => {
-      if (!examId) return;
-      const snap = await getDoc(doc(examDb, "exams", examId));
-      if (snap.exists()) {
-        setExam({ id: snap.id, ...snap.data() } as Exam);
-      }
+    if (!examId) return;
+
+    const load = async () => {
+      // 1) examEntry check (1 read, keyed document)
       if (user) {
-        const subSnap = await getDocs(query(collection(examDb, "submissions"), where("examId", "==", examId), where("userId", "==", user.uid)));
-        if (!subSnap.empty) {
-          const sub = { id: subSnap.docs[0].id, ...subSnap.docs[0].data() } as ExamSubmission;
-          setExistingSubmission(sub);
-          setResult(sub);
-          setSubmitted(true);
+        const entryRef = doc(examDb, "examEntries", `${examId}_${user.uid}`);
+        const entrySnap = await getDoc(entryRef);
+        if (entrySnap.exists()) setExamEntered(true);
+      }
+
+      // 2) Exam data — try localStorage cache first (0 reads on hit)
+      let examData = getCachedExam(examId);
+      if (!examData) {
+        const snap = await getDoc(doc(examDb, "exams", examId));
+        if (snap.exists()) {
+          examData = { id: snap.id, ...snap.data() } as Exam;
+          setCachedExam(examId, examData);           // store to cache
         }
       }
+      if (examData) setExam(examData);
+
+      // 3) Existing submission — session cache first, then query
+      if (user) {
+        const cacheKey = `${examId}_${user.uid}`;
+        if (submissionSessionCache.has(cacheKey)) {
+          const cached = submissionSessionCache.get(cacheKey);
+          if (cached) {
+            setExistingSubmission(cached);
+            setResult(cached);
+            setSubmitted(true);
+            submittedRef.current = true;
+          }
+        } else {
+          // ✅ query দিয়ে শুধু এই user-এর submission — full scan নয়
+          const q = query(
+            collection(examDb, "submissions"),
+            where("examId", "==", examId),
+            where("userId", "==", user.uid)
+          );
+          const subSnap = await getDocs(q);
+          if (!subSnap.empty) {
+            const sub = { id: subSnap.docs[0].id, ...subSnap.docs[0].data() } as ExamSubmission;
+            submissionSessionCache.set(cacheKey, sub);
+            setExistingSubmission(sub);
+            setResult(sub);
+            setSubmitted(true);
+            submittedRef.current = true;
+          } else {
+            submissionSessionCache.set(cacheKey, null); // mark as "no submission"
+          }
+        }
+      }
+
       setLoading(false);
     };
-    fetchExam();
+
+    load();
   }, [examId, user]);
 
+  // ─── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!started || submitted || timeLeft <= 0) return;
     timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
-          handleSubmit();
+          handleSubmitInternal();
           return 0;
         }
         return prev - 1;
@@ -69,6 +194,53 @@ export default function ExamTakePage() {
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [started, submitted]);
+
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+  }, []);
+
+  // ─── Ranking: user-initiated, cached in state (one-time read) ────────────
+  // User বাটনে click করলে একবার fetch হয়, তারপর myRank set হওয়ায় button হারিয়ে যায়।
+  // Session-এ duplicate read নেই।
+  const loadMyRanking = async () => {
+    if (!exam || !user || rankLoading) return;
+    // ✅ Session cache — বারবার click করলেও আর Firebase read হবে না
+    const cacheKey = `ranking_${exam.id}_${user.uid}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { rank, total } = JSON.parse(cached);
+        setMyRank(rank);
+        setTotalParticipants(total);
+        return;
+      }
+    } catch { /* ignore */ }
+
+    setRankLoading(true);
+    try {
+      // ✅ examId দিয়ে filter — full collection scan নয়
+      const q = query(
+        collection(examDb, "submissions"),
+        where("examId", "==", exam.id)
+      );
+      const snap = await getDocs(q);
+      const subs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as ExamSubmission))
+        .sort((a, b) => b.obtainedMarks - a.obtainedMarks);
+      const total = subs.length;
+      const idx = subs.findIndex((s) => s.userId === user.uid);
+      const rank = idx >= 0 ? idx + 1 : null;
+      setTotalParticipants(total);
+      setMyRank(rank);
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ rank, total }));
+      } catch { /* ignore */ }
+    } finally {
+      setRankLoading(false);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -80,48 +252,47 @@ export default function ExamTakePage() {
   const examStarted = exam ? (exam.startTime?.toMillis?.() || 0) <= now : false;
   const examEnded = exam ? (exam.endTime?.toMillis?.() || 0) < now : false;
 
-  const startExam = () => {
-    if (!exam) return;
+  // ─── Start exam: record entry (1 write) ──────────────────────────────────
+  const startExam = async () => {
+    if (!exam || !user) return;
+    try {
+      await setDoc(doc(examDb, "examEntries", `${exam.id}_${user.uid}`), {
+        examId: exam.id,
+        userId: user.uid,
+        enteredAt: Timestamp.now(),
+      });
+      setExamEntered(true);
+    } catch (err) {
+      console.error("Failed to record exam entry:", err);
+    }
     setTimeLeft(exam.duration * 60);
     setStarted(true);
+    if (hasMcqQuestions) requestFullscreen();
     const initial: Record<string, ExamAnswer> = {};
-    exam.questions.forEach(q => {
+    exam.questions.forEach((q) => {
       initial[q.id] = { questionId: q.id, marks: q.marks };
     });
     setAnswers(initial);
   };
 
   const selectOption = (questionId: string, optionIdx: number) => {
-    setAnswers(prev => ({
+    setAnswers((prev) => ({
       ...prev,
       [questionId]: { ...prev[questionId], selectedOption: optionIdx },
     }));
   };
 
-  const handleCameraCapture = async (questionId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingImage(true);
-    try {
-      const url = await uploadToImgBB(file);
-      setAnswers(prev => ({
-        ...prev,
-        [questionId]: { ...prev[questionId], writtenImageUrl: url },
-      }));
-      toast.success("Image uploaded");
-    } catch {
-      toast.error("Upload failed");
-    }
-    setUploadingImage(false);
-  };
 
-  const handleSubmit = useCallback(async () => {
-    if (!exam || !user || !userDoc || submitting) return;
+  // ─── Submit: 1 write only ─────────────────────────────────────────────────
+  const handleSubmitInternal = useCallback(async () => {
+    if (!exam || !user || !userDoc || submitting || submittedRef.current) return;
+    submittedRef.current = true;
     setSubmitting(true);
 
     const negativeMark = exam.negativeMark || 0;
+    const deviceInfo = getDeviceInfo();
 
-    const answersList: ExamAnswer[] = exam.questions.map(q => {
+    const answersList: ExamAnswer[] = exam.questions.map((q) => {
       const ans = answers[q.id] || { questionId: q.id, marks: q.marks };
       if (q.type === "mcq") {
         const isCorrect = ans.selectedOption === q.correctAnswer;
@@ -130,9 +301,9 @@ export default function ExamTakePage() {
       return ans;
     });
 
-    const correctCount = answersList.filter(a => a.isCorrect).length;
-    const wrongCount = answersList.filter(a => a.selectedOption !== undefined && !a.isCorrect).length;
-    const correctMarks = answersList.filter(a => a.isCorrect).reduce((s, a) => s + a.marks, 0);
+    const correctCount = answersList.filter((a) => a.isCorrect).length;
+    const wrongCount = answersList.filter((a) => a.selectedOption !== undefined && !a.isCorrect).length;
+    const correctMarks = answersList.filter((a) => a.isCorrect).reduce((s, a) => s + a.marks, 0);
     const negativeTotal = wrongCount * negativeMark;
     const obtainedMarks = Math.max(0, correctMarks - negativeTotal);
     const passed = obtainedMarks >= (exam.passMark || 0);
@@ -150,39 +321,58 @@ export default function ExamTakePage() {
       wrongCount,
       submittedAt: Timestamp.now(),
       passed,
+      deviceInfo: deviceInfo as any,
     };
 
     try {
       const docRef = await addDoc(collection(examDb, "submissions"), submission);
       const resultSub = { id: docRef.id, ...submission } as ExamSubmission;
+
+      // Session cache update — পরের page load-এ Firebase read হবে না
+      submissionSessionCache.set(`${exam.id}_${user.uid}`, resultSub);
+
       setResult(resultSub);
       setSubmitted(true);
       setStarted(false);
+      exitFullscreen();
       if (timerRef.current) clearInterval(timerRef.current);
-      toast.success("Exam submitted!");
+      toast.success("পরীক্ষা সাবমিট হয়েছে!");
     } catch (err: any) {
       toast.error(err.message);
+      submittedRef.current = false;
     }
     setSubmitting(false);
-  }, [exam, user, userDoc, answers, submitting]);
+  }, [exam, user, userDoc, answers, submitting, exitFullscreen]);
 
-  const loadRankings = async () => {
-    if (!exam || !user) return;
-    const snap = await getDocs(query(collection(examDb, "submissions"), where("examId", "==", exam.id)));
-    const subs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ExamSubmission)).sort((a, b) => b.obtainedMarks - a.obtainedMarks);
-    setRankings(subs);
-    const rank = subs.findIndex(s => s.userId === user.uid);
-    setMyRank(rank >= 0 ? rank + 1 : null);
-    setShowRankings(true);
-  };
+  const handleSubmit = handleSubmitInternal;
 
+  // ─── Loading / Not Found ──────────────────────────────────────────────────
   if (loading) return <div className="p-4 text-center text-muted-foreground text-sm py-8">Loading...</div>;
   if (!exam) return <div className="p-4 text-center text-muted-foreground text-sm py-8">Exam not found</div>;
 
-  // Result view
+  if (examEntered && !existingSubmission && !started && !submitted) {
+    const canReEnter = examStarted && !examEnded;
+    if (!canReEnter) {
+      return (
+        <div className="p-4 max-w-lg mx-auto animate-fade-in">
+          <button onClick={() => navigate("/exams")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
+            <ArrowLeft className="h-4 w-4" /> Back to Exams
+          </button>
+          <div className="bg-card border border-border rounded-xl p-6 text-center">
+            <AlertTriangle className="h-10 w-10 text-destructive mx-auto mb-3" />
+            <h2 className="text-lg font-semibold text-foreground mb-2">পরীক্ষায় পুনরায় প্রবেশ করা যাবে না</h2>
+            <p className="text-sm text-muted-foreground">আপনি এই পরীক্ষায় আগে প্রবেশ করেছিলেন কিন্তু সাবমিট করেননি। পরীক্ষার সময় শেষ হয়ে গেছে।</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // ─── Result View ──────────────────────────────────────────────────────────
   if (submitted && result) {
     const passed = result.obtainedMarks >= (exam.passMark || 0);
     const negativeTotal = (result.wrongCount || 0) * (exam.negativeMark || 0);
+    const scorePercent = Math.round((result.obtainedMarks / result.totalMarks) * 100);
 
     return (
       <div className="p-4 max-w-2xl mx-auto animate-fade-in">
@@ -190,44 +380,126 @@ export default function ExamTakePage() {
           <ArrowLeft className="h-4 w-4" /> Back to Exams
         </button>
 
-        <div className="bg-card border border-border rounded-xl p-6 text-center">
-          <h2 className="text-lg font-semibold text-foreground">{exam.title}</h2>
-          <p className="text-sm text-muted-foreground mb-4">Your Result</p>
-          <div className="text-4xl font-bold text-foreground">{result.obtainedMarks}/{result.totalMarks}</div>
-          
-          {/* Pass/Fail badge */}
-          <div className="mt-3">
-            <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold ${passed ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-500/10 text-destructive"}`}>
-              {passed ? <><Award className="h-4 w-4" /> Passed</> : <><TrendingDown className="h-4 w-4" /> Failed</>}
-            </span>
-          </div>
+        {/* Result Card */}
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className={`h-2 w-full ${passed ? "bg-gradient-to-r from-green-400 to-emerald-500" : "bg-gradient-to-r from-red-400 to-rose-500"}`} />
+          <div className="p-6 text-center">
+            <h2 className="text-base font-semibold text-foreground">{exam.title}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-5">Your Result</p>
 
-          <div className="flex items-center justify-center gap-4 mt-3 text-sm">
-            <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><CheckCircle className="h-4 w-4" /> {result.correctCount} Correct</span>
-            <span className="flex items-center gap-1 text-destructive"><XCircle className="h-4 w-4" /> {result.wrongCount} Wrong</span>
-          </div>
+            <div className="text-5xl font-bold tracking-tight text-foreground">
+              {result.obtainedMarks}
+              <span className="text-2xl font-normal text-muted-foreground">/{result.totalMarks}</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{scorePercent}% scored</p>
 
-          {(exam.negativeMark || 0) > 0 && negativeTotal > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">Negative marks deducted: -{negativeTotal}</p>
-          )}
-          {(result.writtenMarks !== undefined && result.writtenMarks > 0) && (
-            <p className="text-xs text-muted-foreground mt-1">Written marks: {result.writtenMarks} {!result.writtenGraded && "(pending grading)"}</p>
-          )}
-          {exam.passMark > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">Pass mark: {exam.passMark}</p>
-          )}
+            <div className="mt-4">
+              <span
+                className={`inline-flex items-center gap-1.5 px-5 py-1.5 rounded-full text-sm font-semibold ${
+                  passed
+                    ? "bg-green-500/10 text-green-600 dark:text-green-400 ring-1 ring-green-500/20"
+                    : "bg-red-500/10 text-red-600 dark:text-red-400 ring-1 ring-red-500/20"
+                }`}
+              >
+                {passed
+                  ? <><Award className="h-4 w-4" /> উত্তীর্ণ (Passed)</>
+                  : <><TrendingDown className="h-4 w-4" /> অনুত্তীর্ণ (Failed)</>
+                }
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mt-6">
+              <div className="bg-green-500/8 border border-green-500/20 rounded-xl p-3">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto mb-1" />
+                <p className="text-xl font-bold text-green-700 dark:text-green-400">{result.correctCount}</p>
+                <p className="text-xs text-muted-foreground">সঠিক</p>
+              </div>
+              <div className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
+                <XCircle className="h-5 w-5 text-destructive mx-auto mb-1" />
+                <p className="text-xl font-bold text-destructive">{result.wrongCount}</p>
+                <p className="text-xs text-muted-foreground">ভুল</p>
+              </div>
+              <div className="bg-primary/8 border border-primary/20 rounded-xl p-3">
+                <Star className="h-5 w-5 text-primary mx-auto mb-1" />
+                <p className="text-xl font-bold text-primary">{exam.passMark || "—"}</p>
+                <p className="text-xs text-muted-foreground">পাস নম্বর</p>
+              </div>
+            </div>
+
+            {(exam.negativeMark || 0) > 0 && negativeTotal > 0 && (
+              <div className="flex items-center justify-center gap-4 mt-4 flex-wrap">
+                <div className="flex items-center gap-1.5 text-sm">
+                  <MinusCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-muted-foreground">নেগেটিভ:</span>
+                  <span className="font-semibold text-destructive">-{negativeTotal}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Answer review */}
+        {/* Ranking Section */}
+        {examEnded && exam.resultPublished && (
+          <div className="mt-4">
+            {myRank === null ? (
+              <button
+                onClick={loadMyRanking}
+                disabled={rankLoading}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                <Trophy className="h-4 w-4" />
+                {rankLoading ? "লোড হচ্ছে..." : "আমার র‍্যাংকিং দেখুন"}
+              </button>
+            ) : (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-accent/30">
+                  <div className="h-8 w-8 rounded-full bg-yellow-500/15 flex items-center justify-center">
+                    <Trophy className="h-4 w-4 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">র‍্যাংকিং</p>
+                    <p className="text-xs text-muted-foreground">এই পরীক্ষায় আপনার অবস্থান</p>
+                  </div>
+                </div>
+                <div className="p-5 text-center">
+                  <p className="text-6xl font-extrabold tracking-tight text-foreground">#{myRank}</p>
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      মোট <span className="font-semibold text-foreground">{totalParticipants}</span> জন অংশগ্রহণকারীর মধ্যে
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {examEnded && !exam.resultPublished && (
+          <div className="mt-4 bg-accent/50 border border-border rounded-xl p-4 text-center">
+            <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">রেজাল্ট এখনো প্রকাশিত হয়নি। অ্যাডমিন প্রকাশ করলে দেখতে পাবেন।</p>
+          </div>
+        )}
+
+        {/* Answer Review */}
         <div className="mt-6 space-y-3">
-          <h3 className="font-medium text-foreground">Answer Review</h3>
+          <h3 className="font-semibold text-foreground">উত্তরপত্র পর্যালোচনা</h3>
           {exam.questions.map((q, idx) => {
-            const ans = result.answers.find(a => a.questionId === q.id);
+            const ans = result.answers.find((a) => a.questionId === q.id);
             return (
               <div key={q.id} className="bg-card border border-border rounded-xl p-3">
-                <p className="text-sm font-medium text-foreground">Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span></p>
-                {q.questionImage && <img src={q.questionImage} alt="" className="h-24 rounded-lg object-contain mt-2" />}
-                
+                <p className="text-sm font-medium text-foreground">
+                  Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">(MCQ)</span>
+                </p>
+                {q.questionImage && (
+                  <img
+                    src={q.questionImage}
+                    alt=""
+                    className="h-24 rounded-lg object-contain mt-2 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setPreviewImage(q.questionImage!)}
+                  />
+                )}
                 {q.type === "mcq" && q.options && (
                   <div className="mt-2 space-y-1">
                     {q.options.map((opt, oIdx) => {
@@ -248,168 +520,220 @@ export default function ExamTakePage() {
                     })}
                   </div>
                 )}
-
-                {q.type === "written" && ans?.writtenImageUrl && (
-                  <div className="mt-2">
-                    <p className="text-xs text-muted-foreground mb-1">Your answer:</p>
-                    <img src={ans.writtenImageUrl} alt="Answer" className="h-32 rounded-lg object-contain" />
-                    {ans.writtenMarksAwarded !== undefined && (
-                      <p className="text-xs mt-1 text-foreground font-medium">Marks: {ans.writtenMarksAwarded}/{q.marks}</p>
-                    )}
-                  </div>
-                )}
-                {q.type === "written" && !ans?.writtenImageUrl && (
-                  <p className="text-xs text-muted-foreground italic mt-2">No answer submitted</p>
-                )}
-                {/* Show correct written answer after submission */}
-                {q.type === "written" && q.writtenAnswer && (
-                  <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Correct Answer:</p>
-                    {q.writtenAnswer.startsWith("http") ? (
-                      <img src={q.writtenAnswer} alt="Correct Answer" className="h-32 rounded-lg object-contain" />
-                    ) : (
-                      <p className="text-sm text-foreground">{q.writtenAnswer}</p>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
 
-        {/* Rankings - only after exam ends AND result published */}
-        {examEnded && exam.resultPublished && (
-          <div className="mt-6">
-            {!showRankings ? (
-              <button onClick={loadRankings} className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium flex items-center justify-center gap-2">
-                <Trophy className="h-4 w-4" /> View Rankings
-              </button>
-            ) : (
-              <div>
-                <h3 className="font-medium text-foreground mb-3 flex items-center gap-2"><Trophy className="h-4 w-4" /> Rankings</h3>
-                {myRank && (
-                  <div className="bg-accent border border-border rounded-xl p-3 mb-3 text-center">
-                    <p className="text-sm text-muted-foreground">Your Rank</p>
-                    <p className="text-2xl font-bold text-foreground">#{myRank} <span className="text-sm font-normal text-muted-foreground">out of {rankings.length}</span></p>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  {rankings.map((sub, idx) => {
-                    const subPassed = sub.obtainedMarks >= (exam.passMark || 0);
-                    return (
-                      <div key={sub.id} className={`flex items-center justify-between p-3 rounded-xl border ${sub.userId === user?.uid ? "border-primary bg-accent" : "border-border bg-card"}`}>
-                        <div className="flex items-center gap-3">
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${idx < 3 ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"}`}>{idx + 1}</span>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{sub.userName}</p>
-                            <p className="text-xs text-muted-foreground">{sub.userEmail}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-foreground">{sub.obtainedMarks}/{sub.totalMarks}</p>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${subPassed ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-500/10 text-destructive"}`}>
-                            {subPassed ? "Pass" : "Fail"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        {examEnded && !exam.resultPublished && (
-          <div className="mt-6 bg-accent/50 border border-border rounded-xl p-4 text-center">
-            <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Result has not been published yet. Please wait for the admin to publish results.</p>
-          </div>
-        )}
+        <ImagePreviewDialog src={previewImage} onClose={() => setPreviewImage(null)} />
       </div>
     );
   }
 
-  // Pre-start view
+  // ─── Pre-start View ───────────────────────────────────────────────────────
   if (!started) {
+    const examTypeLabel = "MCQ";
+
+    const rules: { icon: React.ReactNode; text: React.ReactNode; variant: "primary" | "danger" }[] = [
+      ...(hasMcqQuestions
+        ? [
+            {
+              icon: <Maximize className="h-3.5 w-3.5" />,
+              text: <>পরীক্ষা <strong>ফুলস্ক্রিন মোডে</strong> চলবে। বের হতে চাইলে অবশ্যই <strong>সাবমিট</strong> করতে হবে।</>,
+              variant: "primary" as const,
+            },
+            {
+              icon: <AlertTriangle className="h-3.5 w-3.5" />,
+              text: <><strong>২ বার ট্যাব সুইচ</strong> করলে পরীক্ষা <strong>অটো-সাবমিট</strong> হয়ে যাবে।</>,
+              variant: "danger" as const,
+            },
+            {
+              icon: <XCircle className="h-3.5 w-3.5" />,
+              text: <><strong>কপি, পেস্ট এবং রাইট-ক্লিক</strong> পরীক্ষা চলাকালীন নিষিদ্ধ।</>,
+              variant: "danger" as const,
+            },
+          ]
+        : []),
+      {
+        icon: <Monitor className="h-3.5 w-3.5" />,
+        text: <>আপনার <strong>ডিভাইস ও ব্রাউজার তথ্য</strong> রেকর্ড করা হবে।</>,
+        variant: "primary" as const,
+      },
+      ...(hasMcqQuestions
+        ? [{ icon: <Camera className="h-3.5 w-3.5" />, text: <><strong>স্ক্রিনশট</strong> নেওয়া যাবে না।</>, variant: "danger" as const }]
+        : []),
+      {
+        icon: <Clock className="h-3.5 w-3.5" />,
+        text: <>সময় শেষ হলে পরীক্ষা <strong>অটো-সাবমিট</strong> হবে।</>,
+        variant: "primary" as const,
+      },
+      {
+        icon: <Shield className="h-3.5 w-3.5" />,
+        text: <>একবার পরীক্ষায় প্রবেশ করলে <strong>সাবমিট না করে বের হওয়া যাবে না</strong>। পরবর্তীতে আবার দেওয়া যাবে না।</>,
+        variant: "danger" as const,
+      },
+    ];
+
     return (
       <div className="p-4 max-w-lg mx-auto animate-fade-in">
         <button onClick={() => navigate("/exams")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
 
-        <div className="bg-card border border-border rounded-xl p-6 text-center">
-          <h2 className="text-lg font-semibold text-foreground">{exam.title}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{exam.courseName}</p>
-          <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-            <p>Type: <span className="text-foreground font-medium">{exam.questions.filter(q => q.type === "mcq").length > 0 ? "MCQ" : ""}{exam.questions.filter(q => q.type === "mcq").length > 0 && exam.questions.filter(q => q.type === "written").length > 0 ? " + " : ""}{exam.questions.filter(q => q.type === "written").length > 0 ? "Written" : ""}</span></p>
-            <p>Questions: <span className="text-foreground font-medium">{exam.questions.length}</span></p>
-            <p>Total Marks: <span className="text-foreground font-medium">{exam.totalMarks}</span></p>
-            <p>Duration: <span className="text-foreground font-medium">{exam.duration} minutes</span></p>
-            {(exam.negativeMark || 0) > 0 && <p>Negative Mark: <span className="text-foreground font-medium">-{exam.negativeMark} per wrong answer</span></p>}
-            {(exam.passMark || 0) > 0 && <p>Pass Mark: <span className="text-foreground font-medium">{exam.passMark}</span></p>}
-            <p>Start: <span className="text-foreground font-medium">{exam.startTime?.toDate?.()?.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
-            <p>End: <span className="text-foreground font-medium">{exam.endTime?.toDate?.()?.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
-          </div>
-
-          {!examStarted && (
-            <p className="mt-4 text-sm text-warning">Exam hasn't started yet. Please wait.</p>
-          )}
-          {examEnded && !existingSubmission && (
-            <div className="mt-4">
-              <p className="text-sm text-destructive mb-4">Exam has ended.</p>
-              <div className="space-y-3">
-                <h3 className="font-medium text-foreground">Correct Answers</h3>
-                {exam.questions.map((q, idx) => (
-                  <div key={q.id} className="bg-card border border-border rounded-xl p-3">
-                    <p className="text-sm font-medium text-foreground">Q{idx + 1}. {q.questionText} <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span></p>
-                    {q.questionImage && <img src={q.questionImage} alt="" className="h-24 rounded-lg object-contain mt-2" />}
-                    
-                    {q.type === "mcq" && q.options && (
-                      <div className="mt-2 space-y-1">
-                        {q.options.map((opt, oIdx) => {
-                          const isCorrect = oIdx === q.correctAnswer;
-                          return (
-                            <div key={oIdx} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isCorrect ? "bg-green-500/10" : "bg-card"}`}>
-                              {isCorrect && <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />}
-                              {!isCorrect && <span className="w-3.5" />}
-                              <span className="text-foreground">{opt.text}</span>
-                              {opt.image && <img src={opt.image} alt="" className="h-8 rounded object-contain ml-auto" />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {q.type === "written" && q.writtenAnswer && (
-                      <div className="mt-2 p-2 bg-green-500/10 rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Correct Answer:</p>
-                        {q.writtenAnswer.startsWith("http") ? (
-                          <img src={q.writtenAnswer} alt="Answer" className="h-32 rounded-lg object-contain" />
-                        ) : (
-                          <p className="text-sm text-foreground">{q.writtenAnswer}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-gradient-to-br from-primary/10 to-primary/5 border-b border-border px-5 py-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                <BookOpen className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-foreground leading-tight">{exam.title}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{exam.courseName}</p>
               </div>
             </div>
-          )}
-          {examStarted && !examEnded && (
-            <button onClick={startExam} className="mt-6 w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm">
-              Start Exam
-            </button>
-          )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-px bg-border">
+            {[
+              { label: "ধরন", value: examTypeLabel },
+              { label: "প্রশ্ন সংখ্যা", value: `${exam.questions.length}টি` },
+              { label: "মোট নম্বর", value: exam.totalMarks },
+              { label: "সময়কাল", value: `${exam.duration} মিনিট` },
+              ...(exam.negativeMark > 0 ? [{ label: "নেগেটিভ মার্ক", value: `-${exam.negativeMark} প্রতিটিতে` }] : []),
+              ...(exam.passMark > 0 ? [{ label: "পাস নম্বর", value: exam.passMark }] : []),
+              {
+                label: "শুরু",
+                value: exam.startTime?.toDate?.()?.toLocaleString("en-US", {
+                  hour: "numeric", minute: "2-digit", hour12: true, month: "short", day: "numeric", year: "numeric",
+                }),
+              },
+              {
+                label: "শেষ",
+                value: exam.endTime?.toDate?.()?.toLocaleString("en-US", {
+                  hour: "numeric", minute: "2-digit", hour12: true, month: "short", day: "numeric", year: "numeric",
+                }),
+              },
+            ].map(({ label, value }, i) => (
+              <div key={i} className="bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                <p className="text-sm font-semibold text-foreground">{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {examStarted && !examEnded && !existingSubmission && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Shield className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">পরীক্ষার নিয়ম ও নিরাপত্তা</h3>
+            </div>
+            <div className="space-y-2">
+              {rules.map((rule, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-3 rounded-xl border ${
+                    rule.variant === "danger"
+                      ? "bg-destructive/5 border-destructive/20"
+                      : "bg-primary/5 border-primary/15"
+                  }`}
+                >
+                  <span
+                    className={`shrink-0 mt-0.5 h-5 w-5 rounded-full flex items-center justify-center ${
+                      rule.variant === "danger"
+                        ? "bg-destructive/15 text-destructive"
+                        : "bg-primary/15 text-primary"
+                    }`}
+                  >
+                    {rule.icon}
+                  </span>
+                  <span className="text-sm text-foreground leading-snug">{rule.text}</span>
+                </div>
+              ))}
+            </div>
+            <label
+              className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                rulesAccepted ? "bg-primary/5 border-primary/30" : "bg-card border-border hover:bg-accent/50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={rulesAccepted}
+                onChange={(e) => setRulesAccepted(e.target.checked)}
+                className="w-4 h-4 rounded border-border accent-primary shrink-0"
+              />
+              <span className="text-sm font-medium text-foreground">
+                আমি পরীক্ষার সকল নিয়মগুলো পড়েছি এবং মানতে সম্মত আছি
+              </span>
+            </label>
+            <button
+              onClick={startExam}
+              disabled={!rulesAccepted}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+            >
+              <Shield className="h-4 w-4" /> পরীক্ষা শুরু করুন
+            </button>
+          </div>
+        )}
+
+        {!examStarted && (
+          <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-center">
+            <Timer className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mx-auto mb-1" />
+            <p className="text-sm text-yellow-700 dark:text-yellow-400 font-medium">পরীক্ষা এখনো শুরু হয়নি। অপেক্ষা করুন।</p>
+          </div>
+        )}
+
+        {examEnded && !existingSubmission && (
+          <div className="mt-4">
+            <p className="text-sm text-destructive mb-4 text-center font-medium">পরীক্ষার সময় শেষ হয়ে গেছে।</p>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-foreground">সঠিক উত্তর</h3>
+              {exam.questions.map((q, idx) => (
+                <div key={q.id} className="bg-card border border-border rounded-xl p-3">
+                  <p className="text-sm font-medium text-foreground">
+                    Q{idx + 1}. {q.questionText}{" "}
+                    <span className="text-xs text-muted-foreground">({q.type === "mcq" ? "MCQ" : "Written"})</span>
+                  </p>
+                  {q.questionImage && (
+                    <img
+                      src={q.questionImage}
+                      alt=""
+                      className="h-24 rounded-lg object-contain mt-2 cursor-pointer hover:opacity-80"
+                      onClick={() => setPreviewImage(q.questionImage!)}
+                    />
+                  )}
+                  {q.type === "mcq" && q.options && (
+                    <div className="mt-2 space-y-1">
+                      {q.options.map((opt, oIdx) => {
+                        const isCorrect = oIdx === q.correctAnswer;
+                        return (
+                          <div key={oIdx} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${isCorrect ? "bg-green-500/10" : "bg-card"}`}>
+                            {isCorrect && <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />}
+                            {!isCorrect && <span className="w-3.5" />}
+                            <span className="text-foreground">{opt.text}</span>
+                            {opt.image && <img src={opt.image} alt="" className="h-8 rounded object-contain ml-auto" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ImagePreviewDialog src={previewImage} onClose={() => setPreviewImage(null)} />
       </div>
     );
   }
 
-  // Exam taking view
+  // ─── Exam Taking View ─────────────────────────────────────────────────────
   const question = exam.questions[currentQ];
 
   return (
-    <div className="p-4 max-w-2xl mx-auto animate-fade-in">
+    <div className="p-4 max-w-2xl mx-auto animate-fade-in select-none">
+
       {/* Timer bar */}
       <div className="sticky top-0 z-40 bg-background border-b border-border -mx-4 px-4 py-2 flex items-center justify-between">
         <span className="text-sm text-foreground font-medium">Q {currentQ + 1}/{exam.questions.length}</span>
@@ -418,73 +742,90 @@ export default function ExamTakePage() {
         </span>
       </div>
 
-      {/* Question navigation dots */}
+      {/* Navigation dots */}
       <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
         {exam.questions.map((q, idx) => {
-          const answered = answers[q.id]?.selectedOption !== undefined || answers[q.id]?.writtenImageUrl;
+          const answered = answers[q.id]?.selectedOption !== undefined;
           return (
-            <button key={q.id} onClick={() => setCurrentQ(idx)}
-              className={`w-8 h-8 rounded-lg text-xs font-medium border ${idx === currentQ ? "border-primary bg-primary text-primary-foreground" : answered ? "border-primary/50 bg-primary/10 text-foreground" : "border-border bg-card text-muted-foreground"}`}
-            >{idx + 1}</button>
+            <button
+              key={q.id}
+              onClick={() => setCurrentQ(idx)}
+              className={`w-8 h-8 rounded-lg text-xs font-medium border ${
+                idx === currentQ
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : answered
+                  ? "border-primary/50 bg-primary/10 text-foreground"
+                  : "border-border bg-card text-muted-foreground"
+              }`}
+            >
+              {idx + 1}
+            </button>
           );
         })}
       </div>
 
       {/* Question */}
       <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-sm font-medium text-foreground mb-1">Question {currentQ + 1} <span className="text-muted-foreground">({question.marks} marks)</span></p>
+        <p className="text-sm font-medium text-foreground mb-1">
+          Question {currentQ + 1} <span className="text-muted-foreground">({question.marks} marks)</span>
+        </p>
         <p className="text-foreground">{question.questionText}</p>
-        {question.questionImage && <img src={question.questionImage} alt="" className="mt-3 max-h-48 rounded-lg object-contain" />}
+        {question.questionImage && (
+          <img src={question.questionImage} alt="" className="mt-3 max-h-48 rounded-lg object-contain pointer-events-none" />
+        )}
 
         {question.type === "mcq" && question.options && (
           <div className="mt-4 space-y-2">
             {question.options.map((opt, oIdx) => {
               const selected = answers[question.id]?.selectedOption === oIdx;
               return (
-                <button key={oIdx} onClick={() => selectOption(question.id, oIdx)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-colors ${selected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-foreground hover:bg-accent"}`}
+                <button
+                  key={oIdx}
+                  onClick={() => selectOption(question.id, oIdx)}
+                  className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-colors ${
+                    selected ? "border-primary bg-primary/10 text-foreground" : "border-border bg-card text-foreground hover:bg-accent"
+                  }`}
                 >
-                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs shrink-0 ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>
+                  <span
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs shrink-0 ${
+                      selected ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                    }`}
+                  >
                     {String.fromCharCode(65 + oIdx)}
                   </span>
                   <span className="flex-1">{opt.text}</span>
-                  {opt.image && <img src={opt.image} alt="" className="h-10 rounded object-contain" />}
+                  {opt.image && <img src={opt.image} alt="" className="h-10 rounded object-contain pointer-events-none" />}
                 </button>
               );
             })}
           </div>
         )}
 
-        {question.type === "written" && (
-          <div className="mt-4">
-            <p className="text-sm text-muted-foreground mb-2">Upload your answer (take a photo):</p>
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={e => handleCameraCapture(question.id, e)} className="hidden" />
-            <button onClick={() => cameraRef.current?.click()} disabled={uploadingImage}
-              className="flex items-center gap-2 px-4 py-3 bg-accent border border-border rounded-xl text-sm text-foreground w-full justify-center">
-              <Camera className="h-4 w-4" /> {uploadingImage ? "Uploading..." : "Take Photo / Upload Image"}
-            </button>
-            {answers[question.id]?.writtenImageUrl && (
-              <img src={answers[question.id].writtenImageUrl} alt="Answer" className="mt-3 max-h-48 rounded-lg object-contain mx-auto" />
-            )}
-          </div>
-        )}
       </div>
 
       {/* Navigation */}
       <div className="flex items-center justify-between mt-4">
-        <button onClick={() => setCurrentQ(Math.max(0, currentQ - 1))} disabled={currentQ === 0}
-          className="flex items-center gap-1 px-4 py-2 bg-card border border-border rounded-xl text-sm text-foreground disabled:opacity-40">
+        <button
+          onClick={() => setCurrentQ(Math.max(0, currentQ - 1))}
+          disabled={currentQ === 0}
+          className="flex items-center gap-1 px-4 py-2 bg-card border border-border rounded-xl text-sm text-foreground disabled:opacity-40"
+        >
           <ChevronLeft className="h-4 w-4" /> Previous
         </button>
 
         {currentQ === exam.questions.length - 1 ? (
-          <button onClick={() => setShowConfirm(true)} disabled={submitting}
-            className="flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50">
+          <button
+            onClick={() => setShowConfirm(true)}
+            disabled={submitting}
+            className="flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50"
+          >
             <Send className="h-4 w-4" /> Submit
           </button>
         ) : (
-          <button onClick={() => setCurrentQ(Math.min(exam.questions.length - 1, currentQ + 1))}
-            className="flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium">
+          <button
+            onClick={() => setCurrentQ(Math.min(exam.questions.length - 1, currentQ + 1))}
+            className="flex items-center gap-1 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium"
+          >
             Next <ChevronRight className="h-4 w-4" />
           </button>
         )}
@@ -494,14 +835,52 @@ export default function ExamTakePage() {
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit Exam</AlertDialogTitle>
+            <AlertDialogTitle>পরীক্ষা সাবমিট করুন</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to submit? You answered {Object.values(answers).filter(a => a.selectedOption !== undefined || a.writtenImageUrl).length}/{exam.questions.length} questions.
+              আপনি কি সাবমিট করতে চান? আপনি{" "}
+              {Object.values(answers).filter((a) => a.selectedOption !== undefined).length}/
+              {exam.questions.length} টি প্রশ্নের উত্তর দিয়েছেন।
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSubmit}>Submit</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Exit confirmation */}
+      <AlertDialog
+        open={showExitConfirm}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowExitConfirm(false);
+            if (hasMcqQuestions) setTimeout(() => requestFullscreen(), 200);
+          }
+        }}
+      >
+        <AlertDialogContent onEscapeKeyDown={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ পরীক্ষা থেকে বের হতে চান?</AlertDialogTitle>
+            <AlertDialogDescription>
+              পরীক্ষা থেকে বের হতে হলে অবশ্যই সাবমিট করতে হবে। সাবমিট না করে বের হওয়া যাবে না।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowExitConfirm(false);
+                if (hasMcqQuestions) setTimeout(() => requestFullscreen(), 200);
+              }}
+            >
+              Cancel — পরীক্ষা চালিয়ে যান
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setShowExitConfirm(false); handleSubmit(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Submit — পরীক্ষা সাবমিট করুন
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

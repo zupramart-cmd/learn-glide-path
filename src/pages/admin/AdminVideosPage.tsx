@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Video, Course } from "@/types";
+import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, ChevronUp, ChevronDown, ChevronLeft, Search, Film, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, Film, Filter } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ImageUrlInput } from "@/components/ImageUrlInput";
 import { AdminVideoListSkeleton } from "@/components/skeletons/AdminSkeleton";
+
+const PAGE_SIZE = 20;
 
 export default function AdminVideosPage() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -17,6 +20,7 @@ export default function AdminVideosPage() {
   const [search, setSearch] = useState("");
   const [filterCourseId, setFilterCourseId] = useState("");
   const [filterSubjectId, setFilterSubjectId] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [courseId, setCourseId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -28,14 +32,14 @@ export default function AdminVideosPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
-    const [vSnap, cSnap] = await Promise.all([
-      getDocs(collection(db, "videos")),
-      getDocs(collection(db, "courses")),
+    invalidateCache("videos");
+    const [vids, courses_] = await Promise.all([
+      getCachedCollection<Video>(db, "videos"),
+      getCachedCollection<Course>(db, "courses"),
     ]);
-    const vids = vSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Video));
     vids.sort((a, b) => (a.order || 0) - (b.order || 0));
     setVideos(vids);
-    setCourses(cSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Course)));
+    setCourses(courses_);
     setLoading(false);
   };
 
@@ -116,6 +120,11 @@ export default function AdminVideosPage() {
     return matchesSearch && matchesCourse && matchesSubject;
   });
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginatedVideos = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => { setCurrentPage(1); }, [search, filterCourseId, filterSubjectId]);
+
   if (loading) return <AdminVideoListSkeleton count={5} />;
 
   // Form view
@@ -130,7 +139,6 @@ export default function AdminVideosPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="px-3 sm:px-4 pt-4 space-y-4 overflow-x-hidden">
-          {/* Course & Subject */}
           <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2.5 bg-accent/30 border-b border-border">
               <Film className="h-4 w-4 text-primary" />
@@ -200,7 +208,6 @@ export default function AdminVideosPage() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
@@ -212,7 +219,6 @@ export default function AdminVideosPage() {
         />
       </div>
 
-      {/* Filters */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
         <select
           value={filterCourseId}
@@ -244,50 +250,68 @@ export default function AdminVideosPage() {
         )}
       </div>
 
-      {/* Results count */}
       {(search || filterCourseId) && (
         <p className="text-xs text-muted-foreground mb-2">{filtered.length} video{filtered.length !== 1 ? "s" : ""} found</p>
       )}
 
-      {/* Video List */}
       <div className="space-y-2">
-        {filtered.length === 0 && (
+        {paginatedVideos.length === 0 && (
           <div className="text-center py-8 text-muted-foreground text-sm">No videos found</div>
         )}
-        {filtered.map((v, idx) => (
-          <div key={v.id} className="p-3 bg-card rounded-xl border border-border flex gap-3 items-center hover:border-primary/20 transition-colors">
-            <div className="flex flex-col gap-0.5 flex-shrink-0">
-              <button onClick={() => moveVideo(idx, "up")} disabled={idx === 0} className="p-0.5 rounded hover:bg-accent disabled:opacity-20">
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              </button>
-              <button onClick={() => moveVideo(idx, "down")} disabled={idx === filtered.length - 1} className="p-0.5 rounded hover:bg-accent disabled:opacity-20">
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            {v.thumbnail ? (
-              <img src={v.thumbnail} alt="" className="w-16 h-10 sm:w-20 sm:h-12 rounded-lg object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-16 h-10 sm:w-20 sm:h-12 bg-muted rounded-lg flex-shrink-0 flex items-center justify-center">
-                <Film className="h-4 w-4 text-muted-foreground/40" />
+        {paginatedVideos.map((v, idx) => {
+          const globalIdx = (currentPage - 1) * PAGE_SIZE + idx;
+          return (
+            <div key={v.id} className="p-3 bg-card rounded-xl border border-border flex gap-3 items-center hover:border-primary/20 transition-colors">
+              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                <button onClick={() => moveVideo(globalIdx, "up")} disabled={globalIdx === 0} className="p-0.5 rounded hover:bg-accent disabled:opacity-20">
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                </button>
+                <button onClick={() => moveVideo(globalIdx, "down")} disabled={globalIdx === filtered.length - 1} className="p-0.5 rounded hover:bg-accent disabled:opacity-20">
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </button>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground text-sm line-clamp-1">{v.title}</p>
-              <p className="text-xs text-muted-foreground truncate">{v.courseName} • {v.subjectName}</p>
+              {v.thumbnail ? (
+                <img src={v.thumbnail} alt="" className="w-16 h-10 sm:w-20 sm:h-12 rounded-lg object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-16 h-10 sm:w-20 sm:h-12 bg-muted rounded-lg flex-shrink-0 flex items-center justify-center">
+                  <Film className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground text-sm line-clamp-1">{v.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{v.courseName} • {v.subjectName}</p>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => openEdit(v)} className="p-2 rounded-lg hover:bg-accent transition-colors"><Edit className="h-4 w-4 text-muted-foreground" /></button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild><button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive/70" /></button></AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader><AlertDialogTitle>Delete Video</AlertDialogTitle><AlertDialogDescription>Delete "{v.title}"?</AlertDialogDescription></AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(v.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
-            <div className="flex gap-1 flex-shrink-0">
-              <button onClick={() => openEdit(v)} className="p-2 rounded-lg hover:bg-accent transition-colors"><Edit className="h-4 w-4 text-muted-foreground" /></button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild><button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive/70" /></button></AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>Delete Video</AlertDialogTitle><AlertDialogDescription>Delete "{v.title}"?</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(v.id)}>Delete</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+            className="p-2 rounded-lg bg-card border border-border disabled:opacity-30">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm text-muted-foreground">
+            {currentPage} / {totalPages}
+          </span>
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+            className="p-2 rounded-lg bg-card border border-border disabled:opacity-30">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

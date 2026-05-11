@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
@@ -6,6 +6,17 @@ import { PaymentMethod, SocialLink, UsefulLink } from "@/types";
 import { toast } from "sonner";
 import { X, Plus, Save, Settings, CreditCard, Share2, Link2 } from "lucide-react";
 import { ImageUrlInput } from "@/components/ImageUrlInput";
+
+/* ── Section wrapper — defined OUTSIDE component to prevent re-mount ── */
+const FormSection = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
+  <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+    <div className="flex items-center gap-2 px-4 py-2.5 bg-accent/30 border-b border-border">
+      <Icon className="h-4 w-4 text-primary" />
+      <span className="text-sm font-medium text-foreground">{title}</span>
+    </div>
+    <div className="p-4 space-y-3">{children}</div>
+  </div>
+);
 
 export default function AdminSettingsPage() {
   const settings = useAppSettings();
@@ -17,8 +28,12 @@ export default function AdminSettingsPage() {
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(settings.socialLinks?.length ? settings.socialLinks : [{ name: "", link: "" }]);
   const [usefulLinks, setUsefulLinks] = useState<UsefulLink[]>(settings.usefulLinks?.length ? settings.usefulLinks : [{ name: "", link: "" }]);
   const [saving, setSaving] = useState(false);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    if (!settings.appName && !settings.appLogo && !settings.youtubeChannel) return;
+    initializedRef.current = true;
     setAppName(settings.appName);
     setAppLogo(settings.appLogo);
     setYoutubeChannel(settings.youtubeChannel);
@@ -38,21 +53,13 @@ export default function AdminSettingsPage() {
         usefulLinks: usefulLinks.filter((u) => u.name && u.link),
       });
       toast.success("Settings saved");
+      // Clear settings cache so changes reflect immediately
+      localStorage.removeItem("fsc_settings_app");
     } catch (err: any) {
       toast.error(err.message);
     }
     setSaving(false);
   };
-
-  const FormSection = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
-    <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-accent/30 border-b border-border">
-        <Icon className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium text-foreground">{title}</span>
-      </div>
-      <div className="p-4 space-y-3">{children}</div>
-    </div>
-  );
 
   return (
     <div className="p-3 sm:p-4 max-w-2xl mx-auto animate-fade-in overflow-x-hidden pb-8 box-border w-full">
