@@ -51,8 +51,8 @@ export default function AdminCoursesPage() {
   const [allMaterialsLink, setAllMaterialsLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchCourses = async () => {
-    invalidateCache("courses");
+  const fetchCourses = async (forceRefresh = false) => {
+    if (forceRefresh) invalidateCache("courses");
     const list = await getCachedCollection<Course>(db, "courses");
     list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
     setCourses(list);
