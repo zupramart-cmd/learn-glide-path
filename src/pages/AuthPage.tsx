@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, addDoc, collection, updateDoc, arrayUnion, Timestamp, getDocs } from "firebase/firestore";
+import { doc, addDoc, collection, updateDoc, arrayUnion, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getCachedCollection } from "@/lib/firestoreCache";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { Course } from "@/types";
