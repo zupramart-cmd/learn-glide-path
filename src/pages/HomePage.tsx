@@ -9,12 +9,22 @@ import { getCachedCollection } from "@/lib/firestoreCache";
 export default function HomePage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
-      const list = await getCachedCollection<Course>(db, "courses");
-      list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-      setCourses(list);
+      try {
+        const list = await getCachedCollection<Course>(db, "courses");
+        list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        setCourses(list);
+      } catch (err: any) {
+        console.error("Failed to load courses:", err);
+        setError(
+          err?.code === "permission-denied" || /permission/i.test(err?.message || "")
+            ? "Unable to load courses. Please ensure Firestore rules allow public read access to the 'courses' collection."
+            : "Failed to load courses. Please try again later."
+        );
+      }
       setLoading(false);
     };
     fetch();
