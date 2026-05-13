@@ -7,7 +7,7 @@ import {
 import { examDb } from "@/lib/examFirebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Exam, ExamAnswer, ExamSubmission } from "@/types/exam";
-import { uploadToImgBB } from "@/lib/imgbb";
+
 import { toast } from "sonner";
 import {
   Camera, Clock, ChevronLeft, ChevronRight, Send, Trophy, CheckCircle, XCircle,

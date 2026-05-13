@@ -14,4 +14,3 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const IMGBB_API_KEY = "d685822691566e39accb630d6ef7a6d9";

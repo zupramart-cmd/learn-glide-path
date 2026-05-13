@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Course } from "@/types";
-import { getCachedDoc } from "@/lib/firestoreCache";
+import { getCachedDoc, getCachedCollection } from "@/lib/firestoreCache";
 import { FolderOpen, Users, Clock, BookOpen, MessageSquare, ExternalLink, Lock, Timer, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { CourseDetailsSkeleton } from "@/components/skeletons/CourseDetailsSkeleton";
 import { FloatingButtons } from "@/components/FloatingButtons";
@@ -26,10 +26,14 @@ export default function CourseDetailsPage() {
       if (cached) setCourse(cached);
       
       if (user) {
-        const q = query(collection(db, "enrollRequests"), where("userId", "==", user.uid), where("courseId", "==", courseId));
-        const reqSnap = await getDocs(q);
-        if (!reqSnap.empty) {
-          const statuses = reqSnap.docs.map(d => d.data().status as string);
+        const reqs = await getCachedCollection<{ id: string; status: string }>(
+          db,
+          "enrollRequests",
+          [where("userId", "==", user.uid), where("courseId", "==", courseId)],
+          `u_${user.uid}_c_${courseId}`,
+        );
+        if (reqs.length) {
+          const statuses = reqs.map((r) => r.status);
           if (statuses.includes("approved")) setEnrollmentStatus("approved");
           else if (statuses.includes("pending")) { setEnrollmentStatus("pending"); setHasPendingRequest(true); }
           else setEnrollmentStatus(statuses[0]);
