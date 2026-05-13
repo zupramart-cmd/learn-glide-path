@@ -22,24 +22,27 @@ export default function CourseDetailsPage() {
   useEffect(() => {
     const fetchData = async () => {
       if (!courseId) return;
-      const cached = await getCachedDoc<Course>(db, "courses", courseId);
-      if (cached) setCourse(cached);
-      
-      if (user) {
-        const reqs = await getCachedCollection<{ id: string; status: string }>(
-          db,
-          "enrollRequests",
-          [where("userId", "==", user.uid), where("courseId", "==", courseId)],
-          `u_${user.uid}_c_${courseId}`,
-        );
-        if (reqs.length) {
-          const statuses = reqs.map((r) => r.status);
-          if (statuses.includes("approved")) setEnrollmentStatus("approved");
-          else if (statuses.includes("pending")) { setEnrollmentStatus("pending"); setHasPendingRequest(true); }
-          else setEnrollmentStatus(statuses[0]);
+      try {
+        const cached = await getCachedDoc<Course>(db, "courses", courseId);
+        if (cached) setCourse(cached);
+
+        if (user) {
+          const reqs = await getCachedCollection<{ id: string; status: string }>(
+            db,
+            "enrollRequests",
+            [where("userId", "==", user.uid), where("courseId", "==", courseId)],
+            `u_${user.uid}_c_${courseId}`,
+          );
+          if (reqs.length) {
+            const statuses = reqs.map((r) => r.status);
+            if (statuses.includes("approved")) setEnrollmentStatus("approved");
+            else if (statuses.includes("pending")) { setEnrollmentStatus("pending"); setHasPendingRequest(true); }
+            else setEnrollmentStatus(statuses[0]);
+          }
         }
+      } catch (err) {
+        console.error("Failed to load course details:", err);
       }
-      
       setLoading(false);
     };
     fetchData();
