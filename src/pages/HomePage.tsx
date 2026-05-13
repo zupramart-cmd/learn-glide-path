@@ -47,7 +47,11 @@ export default function HomePage() {
         All Courses
       </h2>
 
-      {courses.length === 0 ? (
+      {error ? (
+        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
+          {error}
+        </div>
+      ) : courses.length === 0 ? (
         <p className="text-muted-foreground text-center py-8">
           No courses available yet.
         </p>
