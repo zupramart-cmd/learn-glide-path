@@ -51,8 +51,10 @@ export default function CourseDetailsPage() {
   const isEnrolled = userDoc?.enrolledCourses?.some((c) => c.courseId === courseId);
   const isApproved = enrollmentStatus === "approved";
   const isPending = enrollmentStatus === "pending";
+  const isInactive = (course as any).isActive === false;
 
   const handleEnroll = () => {
+    if (isInactive) return;
     if (!user) navigate(`/auth?mode=register&courseId=${courseId}`);
     else if (!isEnrolled) navigate(`/auth?mode=register&courseId=${courseId}`);
   };
@@ -175,7 +177,13 @@ export default function CourseDetailsPage() {
           )}
 
           {/* Enrolled-only content */}
-          {isEnrolled && isApproved ? (
+          {isInactive ? (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-center space-y-2">
+              <Lock className="h-6 w-6 text-destructive mx-auto" />
+              <p className="text-sm font-medium text-destructive">Course Expired</p>
+              <p className="text-xs text-muted-foreground">This course is no longer available.</p>
+            </div>
+          ) : isEnrolled && isApproved ? (
             <div className="space-y-2">
               <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
                 🎓 Enrolled Content
@@ -218,7 +226,11 @@ export default function CourseDetailsPage() {
 
           {/* Enroll / Start CTA */}
           <div className="pt-2 pb-4">
-            {isEnrolled && isApproved ? (
+            {isInactive ? (
+              <div className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium rounded-xl bg-destructive/10 text-destructive border border-destructive/30">
+                <Lock className="h-4 w-4" /> Course Expired
+              </div>
+            ) : isEnrolled && isApproved ? (
               <Link to="/content" className="block w-full text-center px-6 py-3.5 text-sm font-semibold rounded-xl bg-success text-success-foreground shadow-sm hover:opacity-90 transition-opacity">
                 ✅ Start Course
               </Link>
