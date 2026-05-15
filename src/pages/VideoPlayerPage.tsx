@@ -557,9 +557,9 @@ export default function VideoPlayerPage() {
                         e.stopPropagation();
                         cycleSpeed();
                       }}
-                      className="text-white text-xs font-medium px-2 py-0.5 bg-white/20 rounded"
+                      className="text-white text-xs font-medium px-2 py-0.5 bg-white/20 rounded min-w-[3.5rem]"
                     >
-                      {SPEEDS[speedIndex]}x
+                      {SPEEDS[speedIndex] === 1 ? "Normal" : `${SPEEDS[speedIndex]}x`}
                     </button>
                   )}
                   <button

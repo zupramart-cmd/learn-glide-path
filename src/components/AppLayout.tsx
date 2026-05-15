@@ -54,7 +54,7 @@ export function AppLayout() {
         </>
       ) : (
         <>
-          {isMobile && <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
+          <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <div className="flex flex-1">
             {showDesktopSidebar && <DesktopUserSidebar />}
             <main className={`flex-1 overflow-x-hidden ${showBottomNav ? "pb-16" : ""}`}>

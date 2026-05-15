@@ -1,5 +1,5 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppSettingsProvider } from "@/contexts/AppSettingsContext";
 import { AppLayout } from "@/components/AppLayout";
@@ -38,7 +38,8 @@ const App = () => (
           <Routes>
             <Route element={<AppLayout />}>
               <Route path="/" element={<IndexRedirect />} />
-              <Route path="/home" element={<HomePage />} />
+              <Route path="/home" element={<Navigate to="/courses" replace />} />
+              <Route path="/courses" element={<HomePage />} />
               <Route path="/course/:courseId" element={<CourseDetailsPage />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/content" element={<MyCoursesPage />} />

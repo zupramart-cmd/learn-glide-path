@@ -19,6 +19,7 @@ import {
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const WHATSAPP_ICON = (
   <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" xmlns="http://www.w3.org/2000/svg">
@@ -125,7 +126,13 @@ interface ChatMessage {
   role: "bot" | "user";
   content: string;
   quickReplies?: FAQ[];
+  timestamp: Date;
+  animate?: boolean;
+  quickRepliesReady?: boolean;
 }
+
+const formatTime = (d: Date) =>
+  d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 
 // Simple markdown-ish renderer for bold + bullets + line breaks
 function FormattedText({ text }: { text: string }) {
@@ -151,6 +158,83 @@ function FormattedText({ text }: { text: string }) {
   );
 }
 
+// Smooth streaming typewriter — token-by-token, natural rhythm
+function TypewriterText({
+  text,
+  onTick,
+  onDone,
+}: {
+  text: string;
+  speed?: number;
+  onTick?: () => void;
+  onDone?: () => void;
+}) {
+  const [shown, setShown] = useState("");
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const doneRef = useRef(false);
+
+  // Split into tokens: word + trailing space/punctuation kept together
+  const tokens = text.match(/\S+\s*/g) ?? [];
+
+  useEffect(() => {
+    setShown("");
+    setCursorVisible(true);
+    doneRef.current = false;
+    let i = 0;
+    let cancelled = false;
+
+    const tick = () => {
+      if (cancelled) return;
+      i++;
+      setShown(tokens.slice(0, i).join(""));
+      onTick?.();
+      if (i >= tokens.length) {
+        doneRef.current = true;
+        // fade cursor out after a short hold
+        setTimeout(() => {
+          if (!cancelled) setCursorVisible(false);
+          onDone?.();
+        }, 350);
+        return;
+      }
+      // speed: base 55ms per token, slight jitter, brief pause after sentence-ending punctuation
+      const token = tokens[i - 1];
+      let delay = 52 + Math.random() * 35;
+      if (/[।.!?]\s*$/.test(token)) delay = 260 + Math.random() * 120;
+      else if (/[,;:—–]\s*$/.test(token)) delay = 110 + Math.random() * 60;
+      // every ~8 tokens a micro-stutter to feel live
+      if (i % 8 === 0) delay += 40 + Math.random() * 40;
+      setTimeout(tick, delay);
+    };
+
+    const start = setTimeout(tick, 60);
+    return () => {
+      cancelled = true;
+      clearTimeout(start);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  const done = shown.length >= text.length;
+
+  return (
+    <>
+      <FormattedText text={shown} />
+      {cursorVisible && (
+        <span
+          className="inline-block w-[2px] h-[1em] bg-current align-middle ml-[1px]"
+          style={{
+            opacity: done ? 0 : 0.7,
+            transition: done ? "opacity 0.4s ease" : "none",
+            animation: done ? "none" : "blink 0.9s step-end infinite",
+          }}
+        />
+      )}
+      <style>{`@keyframes blink { 0%,100%{opacity:0.7} 50%{opacity:0} }`}</style>
+    </>
+  );
+}
+
 function TypingDots() {
   return (
     <div className="flex items-center gap-1 px-1 py-1">
@@ -165,6 +249,7 @@ export function FloatingButtons() {
   const settings = useAppSettings();
   const { userDoc } = useAuth();
   const { pathname } = useLocation();
+  const isMobile = useIsMobile();
   const isAdmin = userDoc?.role === "admin";
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -172,30 +257,55 @@ export function FloatingButtons() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 1, role: "bot", content: WELCOME_TEXT, quickReplies: FAQS.slice(0, 6) },
+    { id: 1, role: "bot", content: WELCOME_TEXT, quickReplies: FAQS.slice(0, 6), timestamp: new Date(), animate: true, quickRepliesReady: false },
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
   const [whatsappInput, setWhatsappInput] = useState("");
-  const [waHistory, setWaHistory] = useState<{ role: "user"; content: string }[]>([]);
+  const [waHistory, setWaHistory] = useState<{ role: "user"; content: string; timestamp: Date }[]>([]);
+  const [waWelcomeKey, setWaWelcomeKey] = useState(0);
+  const [chatWelcomeKey, setChatWelcomeKey] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const waScrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(2);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isTyping]);
 
+  useEffect(() => {
+    waScrollRef.current?.scrollTo({ top: waScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [waHistory]);
+
+  // Replay WA welcome typing each time the window opens
+  useEffect(() => {
+    if (whatsappOpen) setWaWelcomeKey((k) => k + 1);
+  }, [whatsappOpen]);
+
+  // Replay chat welcome typing each time the chat opens
+  useEffect(() => {
+    if (chatOpen) setChatWelcomeKey((k) => k + 1);
+  }, [chatOpen]);
+
   if (isAdmin || pathname.startsWith("/admin")) return null;
 
-  const pushMessage = (msg: Omit<ChatMessage, "id">) => {
-    setMessages((prev) => [...prev, { ...msg, id: idRef.current++ }]);
+  const pushMessage = (msg: Omit<ChatMessage, "id" | "timestamp" | "animate"> & { timestamp?: Date }) => {
+    setMessages((prev) => [...prev, { ...msg, id: idRef.current++, timestamp: msg.timestamp || new Date(), animate: msg.role === "bot" }]);
+  };
+
+  const markQuickRepliesReady = (id: number) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, quickRepliesReady: true } : m))
+    );
   };
 
   const respondWithFaq = (faq: FAQ) => {
     pushMessage({ role: "user", content: faq.question });
     setIsTyping(true);
+    // typing delay proportional to answer length, capped
+    const delay = Math.min(400 + faq.answer.length * 0.8, 1800);
     setTimeout(() => {
       setIsTyping(false);
       pushMessage({
@@ -203,7 +313,7 @@ export function FloatingButtons() {
         content: faq.answer,
         quickReplies: FAQS.filter((f) => f.id !== faq.id).slice(0, 4),
       });
-    }, 600);
+    }, delay);
   };
 
   const handleSend = () => {
@@ -216,6 +326,7 @@ export function FloatingButtons() {
     const matched = FAQS.find((f) => f.keywords.some((k) => lower.includes(k.toLowerCase())));
 
     setIsTyping(true);
+    const replyDelay = (content: string) => Math.min(400 + content.length * 0.8, 1800);
     setTimeout(() => {
       setIsTyping(false);
       if (matched) {
@@ -225,11 +336,8 @@ export function FloatingButtons() {
           quickReplies: FAQS.filter((f) => f.id !== matched.id).slice(0, 4),
         });
       } else if (/হাই|hi|hello|হ্যালো|আসসালাম/i.test(text)) {
-        pushMessage({
-          role: "bot",
-          content: "ওয়ালাইকুম আসসালাম! 😊 নিচের যেকোনো প্রশ্নে ক্লিক করুন অথবা টাইপ করুন।",
-          quickReplies: FAQS.slice(0, 6),
-        });
+        const content = "ওয়ালাইকুম আসসালাম! 😊 নিচের যেকোনো প্রশ্নে ক্লিক করুন অথবা টাইপ করুন।";
+        pushMessage({ role: "bot", content, quickReplies: FAQS.slice(0, 6) });
       } else if (/ধন্যবাদ|thanks|thank/i.test(text)) {
         pushMessage({ role: "bot", content: "আপনাকেও ধন্যবাদ! 🙏 আর কোনো প্রশ্ন থাকলে জানাবেন।" });
       } else {
@@ -240,7 +348,7 @@ export function FloatingButtons() {
           quickReplies: FAQS,
         });
       }
-    }, 700);
+    }, replyDelay(matched?.answer ?? "short"));
   };
 
   const sendWhatsApp = () => {
@@ -248,7 +356,7 @@ export function FloatingButtons() {
     const whatsappNumber =
       settings.socialLinks?.find((s) => s.name.toLowerCase().includes("whatsapp"))?.link || "";
     const number = whatsappNumber.replace(/\D/g, "");
-    setWaHistory((prev) => [...prev, { role: "user", content: whatsappInput }]);
+    setWaHistory((prev) => [...prev, { role: "user", content: whatsappInput, timestamp: new Date() }]);
     if (number) {
       window.open(`https://wa.me/${number}?text=${encodeURIComponent(whatsappInput)}`, "_blank");
     }
@@ -262,25 +370,19 @@ export function FloatingButtons() {
   };
 
   return (
-    <div className="fixed bottom-20 right-3 sm:right-4 z-40 flex flex-col gap-3 items-end">
+    <div className={`fixed ${isMobile ? "bottom-20" : "bottom-6"} right-3 sm:right-4 z-40 flex flex-col gap-3 items-end`}>
       {/* Chatbot Window */}
       {chatOpen && (
         <div className="w-[calc(100vw-1.5rem)] max-w-96 h-[32rem] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in">
           {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground flex items-center gap-3 shrink-0">
             <div className="relative">
-              {settings.appLogo ? (
-                <img src={settings.appLogo} alt="" className="h-9 w-9 rounded-full object-cover border-2 border-primary-foreground/20" />
-              ) : (
-                <div className="h-9 w-9 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-              )}
+              <img src="/logo.png" alt="" className="h-9 w-9 rounded-full object-cover border-2 border-primary-foreground/20" />
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-primary" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">Ashik Vaiya</div>
-              <div className="text-[11px] opacity-80">Online • সাধারণত দ্রুত উত্তর দেয়</div>
+              <div className="text-[11px] opacity-80">Online</div>
             </div>
             <button
               onClick={closeAll}
@@ -301,11 +403,7 @@ export function FloatingButtons() {
                 <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} items-end gap-2`}>
                   {msg.role === "bot" && (
                     <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                      {settings.appLogo ? (
-                        <img src={settings.appLogo} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      )}
+                      <img src="/logo.png" alt="" className="h-full w-full object-cover" />
                     </div>
                   )}
                   <div
@@ -315,12 +413,30 @@ export function FloatingButtons() {
                         : "bg-card border border-border text-foreground rounded-2xl rounded-bl-md"
                     }`}
                   >
-                    <FormattedText text={msg.content} />
+                    {msg.role === "bot" && msg.animate ? (
+                      <TypewriterText
+                        key={msg.id === 1 ? chatWelcomeKey : msg.id}
+                        text={msg.content}
+                        onTick={() =>
+                          scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+                        }
+                        onDone={() => markQuickRepliesReady(msg.id)}
+                      />
+                    ) : (
+                      <FormattedText text={msg.content} />
+                    )}
+                    <div className={`text-[10px] mt-1 ${msg.role === "user" ? "text-primary-foreground/70 text-right" : "text-muted-foreground"}`}>
+                      {formatTime(msg.timestamp)}
+                    </div>
                   </div>
                 </div>
 
-                {msg.quickReplies && msg.quickReplies.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pl-9">
+                {msg.quickReplies && msg.quickReplies.length > 0 && (msg.quickRepliesReady || !msg.animate) && (
+                  <div
+                    className="flex flex-wrap gap-1.5 pl-9"
+                    style={{ animation: "fadeSlideUp 0.3s ease both" }}
+                  >
+                    <style>{`@keyframes fadeSlideUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
                     {msg.quickReplies.map((faq) => (
                       <button
                         key={faq.id}
@@ -339,11 +455,7 @@ export function FloatingButtons() {
             {isTyping && (
               <div className="flex justify-start items-end gap-2">
                 <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                  {settings.appLogo ? (
-                    <img src={settings.appLogo} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  )}
+                  <img src="/logo.png" alt="" className="h-full w-full object-cover" />
                 </div>
                 <div className="bg-card border border-border rounded-2xl rounded-bl-md px-3 py-2 shadow-sm">
                   <TypingDots />
@@ -379,11 +491,7 @@ export function FloatingButtons() {
           <div className="px-4 py-3 bg-[#075E54] text-white flex items-center gap-3 shrink-0">
             <div className="relative">
               <div className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center overflow-hidden">
-                {settings.appLogo ? (
-                  <img src={settings.appLogo} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  WHATSAPP_ICON
-                )}
+                <img src="/logo.png" alt="" className="h-full w-full object-cover" />
               </div>
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-[#075E54]" />
             </div>
@@ -402,6 +510,7 @@ export function FloatingButtons() {
 
           {/* WhatsApp-style background */}
           <div
+            ref={waScrollRef}
             className="flex-1 overflow-y-auto px-3 py-4 space-y-2"
             style={{
               backgroundColor: "hsl(var(--muted))",
@@ -411,15 +520,23 @@ export function FloatingButtons() {
           >
             <div className="flex justify-start">
               <div className="max-w-[80%] rounded-lg rounded-tl-none px-3 py-2 text-sm bg-card text-foreground shadow-sm">
-                <FormattedText text={WELCOME_TEXT} />
-                <div className="text-[10px] text-muted-foreground mt-1">এখন</div>
+                <TypewriterText
+                  key={waWelcomeKey}
+                  text={WELCOME_TEXT}
+                  onTick={() =>
+                    waScrollRef.current?.scrollTo({ top: waScrollRef.current.scrollHeight })
+                  }
+                />
+                <div className="text-[10px] text-muted-foreground mt-1">{formatTime(new Date())}</div>
               </div>
             </div>
             {waHistory.map((msg, i) => (
               <div key={i} className="flex justify-end">
                 <div className="max-w-[80%] rounded-lg rounded-tr-none px-3 py-2 text-sm bg-[#DCF8C6] text-gray-900 shadow-sm">
                   {msg.content}
-                  <div className="text-[10px] text-gray-600 mt-1 text-right">✓✓ পাঠানো হয়েছে</div>
+                  <div className="text-[10px] text-gray-600 mt-1 text-right">
+                    {formatTime(msg.timestamp)} ✓✓
+                  </div>
                 </div>
               </div>
             ))}
