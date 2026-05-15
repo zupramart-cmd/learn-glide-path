@@ -106,6 +106,7 @@ export default function VideoPlayerPage() {
   >([]);
   const [chapterFilter, setChapterFilter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [courseInactive, setCourseInactive] = useState(false);
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,11 @@ export default function VideoPlayerPage() {
         try {
           const course = await getCachedDoc<Course>(db, "courses", v.courseId);
           if (!cancelled && course) {
+            if ((course as any).isActive === false) {
+              setCourseInactive(true);
+              setLoading(false);
+              return;
+            }
             const sub = course.subjects?.find((s) => s.subjectId === v.subjectId);
             setAllChapters(sub?.chapters || []);
           }
