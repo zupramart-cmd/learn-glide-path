@@ -13,8 +13,9 @@ export default function HomePage() {
   useEffect(() => {
     const fetch = async () => {
       const list = await getCachedCollection<Course>(db, "courses");
-      list.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-      setCourses(list);
+      const visible = list.filter((c: any) => c.isActive !== false);
+      visible.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      setCourses(visible);
       setLoading(false);
     };
     fetch();

@@ -19,13 +19,21 @@ export default function CourseContentPage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [activeSubject, setActiveSubject] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [inactive, setInactive] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate("/auth?mode=login"); return; }
     const fetch = async () => {
       if (!courseId) return;
       const courseData = await getCachedDoc<Course>(db, "courses", courseId);
-      if (courseData) setCourse(courseData);
+      if (courseData) {
+        setCourse(courseData);
+        if ((courseData as any).isActive === false) {
+          setInactive(true);
+          setLoading(false);
+          return;
+        }
+      }
 
       const vids = await getCachedCollection<Video>(
         db,
@@ -40,6 +48,17 @@ export default function CourseContentPage() {
     };
     fetch();
   }, [courseId, user]);
+
+  if (inactive) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">Course Expired</p>
+          <p className="text-sm text-muted-foreground mt-1">This course is no longer available.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="p-4"><Skeleton className="h-6 w-48 mb-3" /><div className="flex gap-2 pb-3">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-8 w-20 rounded-full" />)}</div><VideoGridSkeleton count={6} /></div>;

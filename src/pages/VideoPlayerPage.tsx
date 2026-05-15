@@ -106,6 +106,7 @@ export default function VideoPlayerPage() {
   >([]);
   const [chapterFilter, setChapterFilter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [courseInactive, setCourseInactive] = useState(false);
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,11 @@ export default function VideoPlayerPage() {
         try {
           const course = await getCachedDoc<Course>(db, "courses", v.courseId);
           if (!cancelled && course) {
+            if ((course as any).isActive === false) {
+              setCourseInactive(true);
+              setLoading(false);
+              return;
+            }
             const sub = course.subjects?.find((s) => s.subjectId === v.subjectId);
             setAllChapters(sub?.chapters || []);
           }
@@ -401,6 +407,16 @@ export default function VideoPlayerPage() {
     playerRef.current?.seekTo(t, true);
   }, [video?.isLive]);
 
+  if (courseInactive) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20 max-w-md mx-auto">
+          <p className="text-foreground font-medium">Course Expired</p>
+          <p className="text-sm text-muted-foreground mt-1">This course is no longer available.</p>
+        </div>
+      </div>
+    );
+  }
   if (!video && loading) return <VideoPlayerSkeleton />;
   if (!video && !loading)
     return (

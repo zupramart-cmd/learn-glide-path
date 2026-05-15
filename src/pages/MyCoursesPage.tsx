@@ -22,6 +22,7 @@ export default function MyCoursesPage() {
   const [activeSubject, setActiveSubject] = useState("All");
   const [activeChapter, setActiveChapter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [courseInactive, setCourseInactive] = useState(false);
 
   useEffect(() => {
     const subjectParam = searchParams.get("subject");
@@ -51,6 +52,11 @@ export default function MyCoursesPage() {
         const course = await getCachedDoc<Course>(db, "courses", courseId);
         if (course) {
           setAllSubjects(course.subjects || []);
+          if ((course as any).isActive === false) {
+            setCourseInactive(true);
+            setLoading(false);
+            return;
+          }
         }
 
         const vids = await getCachedCollection<Video>(
@@ -91,6 +97,19 @@ export default function MyCoursesPage() {
           <p className="text-foreground font-medium">Enrollment Rejected</p>
           <p className="text-sm text-muted-foreground mt-1">
             Your enrollment was rejected. Please contact support.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (courseInactive) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">Course Expired</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            This course is no longer available.
           </p>
         </div>
       </div>

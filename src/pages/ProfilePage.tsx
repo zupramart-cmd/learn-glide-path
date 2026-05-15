@@ -56,14 +56,16 @@ export default function ProfilePage() {
     });
   }, [userDoc?.activeCourseId]);
 
-  // ── load available courses when enroll dialog opens ───────────────────────
+  // ── load all courses (cached) to detect inactive ─────────────────────────
   useEffect(() => {
-    if (enrollOpen) {
-      getCachedCollection<Course>(db, "courses").then((list) => {
-        setAllCourses(list);
-      });
-    }
-  }, [enrollOpen]);
+    getCachedCollection<Course>(db, "courses").then((list) => {
+      setAllCourses(list);
+    });
+  }, []);
+
+  const inactiveIds = new Set(
+    allCourses.filter((c: any) => c.isActive === false).map((c) => c.id)
+  );
 
   // ── fetch enroll request statuses ─────────────────────────────────────────
   // Re-runs whenever enrolledCourses count changes (new enroll) OR on mount.
@@ -106,10 +108,13 @@ export default function ProfilePage() {
   };
 
   const enrolledIds = userDoc.enrolledCourses?.map((c) => c.courseId) || [];
-  const availableCourses = allCourses.filter((c) => !enrolledIds.includes(c.id));
+  const availableCourses = allCourses.filter(
+    (c) => !enrolledIds.includes(c.id) && (c as any).isActive !== false
+  );
 
   const activeCourseStatus = activeCourse ? getStatus(activeCourse.id) : undefined;
-  const isActiveApproved = activeCourseStatus === "approved";
+  const isActiveInactive = activeCourse ? inactiveIds.has(activeCourse.id) : false;
+  const isActiveApproved = activeCourseStatus === "approved" && !isActiveInactive;
   const isActiveRejected = activeCourseStatus === "rejected";
   const isActivePending  = activeCourseStatus === "pending";
 
@@ -320,8 +325,8 @@ export default function ProfilePage() {
           <div className="space-y-2">
             {userDoc.enrolledCourses.map((c) => {
               const reqStatus = getStatus(c.courseId);
-              // While statuses not ready, show neutral state (no action buttons)
-              const isApproved = reqStatus === "approved";
+              const isExpired = inactiveIds.has(c.courseId);
+              const isApproved = reqStatus === "approved" && !isExpired;
               const isPending  = reqStatus === "pending";
               const isRejected = reqStatus === "rejected";
 
@@ -330,24 +335,27 @@ export default function ProfilePage() {
                   key={c.courseId}
                   className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                     c.courseId === userDoc.activeCourseId ? "border-primary bg-accent" : "border-border"
-                  }`}
+                  } ${isExpired ? "opacity-70" : ""}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {c.courseThumbnail && (
-                      <img src={c.courseThumbnail} alt="" className="w-10 h-10 rounded-md object-cover shrink-0" />
+                      <img src={c.courseThumbnail} alt="" className={`w-10 h-10 rounded-md object-cover shrink-0 ${isExpired ? "grayscale" : ""}`} />
                     )}
                     <div className="min-w-0">
                       <span className="text-sm font-medium text-foreground block truncate">{c.courseName}</span>
-                      {isPending && (
+                      {isExpired ? (
+                        <p className="text-[11px] text-destructive flex items-center gap-1">
+                          <XCircle className="h-3 w-3" /> Expired
+                        </p>
+                      ) : isPending ? (
                         <p className="text-[11px] text-warning flex items-center gap-1">
                           <Clock className="h-3 w-3" /> Pending approval
                         </p>
-                      )}
-                      {isRejected && (
+                      ) : isRejected ? (
                         <p className="text-[11px] text-destructive flex items-center gap-1">
                           <XCircle className="h-3 w-3" /> Rejected
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
@@ -360,7 +368,7 @@ export default function ProfilePage() {
                     </button>
                   )}
 
-                  {isRejected && (
+                  {isRejected && !isExpired && (
                     <button
                       onClick={() => {
                         resetPaymentForm();
@@ -519,7 +527,13 @@ export default function ProfilePage() {
       </Dialog>
 
       {/* Course Resources */}
-      {isActiveApproved ? (
+      {isActiveInactive ? (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-center space-y-2">
+          <XCircle className="h-6 w-6 text-destructive mx-auto" />
+          <p className="text-sm text-destructive font-medium">Course Expired</p>
+          <p className="text-xs text-muted-foreground">This course is no longer available.</p>
+        </div>
+      ) : isActiveApproved ? (
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <h3 className="font-semibold text-foreground text-sm mb-2">🎓 Course Resources</h3>
 
