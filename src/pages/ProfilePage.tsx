@@ -108,10 +108,13 @@ export default function ProfilePage() {
   };
 
   const enrolledIds = userDoc.enrolledCourses?.map((c) => c.courseId) || [];
-  const availableCourses = allCourses.filter((c) => !enrolledIds.includes(c.id));
+  const availableCourses = allCourses.filter(
+    (c) => !enrolledIds.includes(c.id) && (c as any).isActive !== false
+  );
 
   const activeCourseStatus = activeCourse ? getStatus(activeCourse.id) : undefined;
-  const isActiveApproved = activeCourseStatus === "approved";
+  const isActiveInactive = activeCourse ? inactiveIds.has(activeCourse.id) : false;
+  const isActiveApproved = activeCourseStatus === "approved" && !isActiveInactive;
   const isActiveRejected = activeCourseStatus === "rejected";
   const isActivePending  = activeCourseStatus === "pending";
 
