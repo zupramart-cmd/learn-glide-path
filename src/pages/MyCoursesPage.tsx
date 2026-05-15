@@ -103,6 +103,19 @@ export default function MyCoursesPage() {
     );
   }
 
+  if (courseInactive) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">Course Expired</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            This course is no longer available.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="p-4">
