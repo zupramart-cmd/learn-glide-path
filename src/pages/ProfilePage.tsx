@@ -56,14 +56,16 @@ export default function ProfilePage() {
     });
   }, [userDoc?.activeCourseId]);
 
-  // ── load available courses when enroll dialog opens ───────────────────────
+  // ── load all courses (cached) to detect inactive ─────────────────────────
   useEffect(() => {
-    if (enrollOpen) {
-      getCachedCollection<Course>(db, "courses").then((list) => {
-        setAllCourses(list);
-      });
-    }
-  }, [enrollOpen]);
+    getCachedCollection<Course>(db, "courses").then((list) => {
+      setAllCourses(list);
+    });
+  }, []);
+
+  const inactiveIds = new Set(
+    allCourses.filter((c: any) => c.isActive === false).map((c) => c.id)
+  );
 
   // ── fetch enroll request statuses ─────────────────────────────────────────
   // Re-runs whenever enrolledCourses count changes (new enroll) OR on mount.
