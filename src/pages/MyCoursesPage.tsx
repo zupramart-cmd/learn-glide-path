@@ -22,6 +22,7 @@ export default function MyCoursesPage() {
   const [activeSubject, setActiveSubject] = useState("All");
   const [activeChapter, setActiveChapter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [courseInactive, setCourseInactive] = useState(false);
 
   useEffect(() => {
     const subjectParam = searchParams.get("subject");
@@ -51,6 +52,11 @@ export default function MyCoursesPage() {
         const course = await getCachedDoc<Course>(db, "courses", courseId);
         if (course) {
           setAllSubjects(course.subjects || []);
+          if ((course as any).isActive === false) {
+            setCourseInactive(true);
+            setLoading(false);
+            return;
+          }
         }
 
         const vids = await getCachedCollection<Video>(
