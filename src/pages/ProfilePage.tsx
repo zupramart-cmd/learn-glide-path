@@ -325,8 +325,8 @@ export default function ProfilePage() {
           <div className="space-y-2">
             {userDoc.enrolledCourses.map((c) => {
               const reqStatus = getStatus(c.courseId);
-              // While statuses not ready, show neutral state (no action buttons)
-              const isApproved = reqStatus === "approved";
+              const isExpired = inactiveIds.has(c.courseId);
+              const isApproved = reqStatus === "approved" && !isExpired;
               const isPending  = reqStatus === "pending";
               const isRejected = reqStatus === "rejected";
 
@@ -335,24 +335,27 @@ export default function ProfilePage() {
                   key={c.courseId}
                   className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                     c.courseId === userDoc.activeCourseId ? "border-primary bg-accent" : "border-border"
-                  }`}
+                  } ${isExpired ? "opacity-70" : ""}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {c.courseThumbnail && (
-                      <img src={c.courseThumbnail} alt="" className="w-10 h-10 rounded-md object-cover shrink-0" />
+                      <img src={c.courseThumbnail} alt="" className={`w-10 h-10 rounded-md object-cover shrink-0 ${isExpired ? "grayscale" : ""}`} />
                     )}
                     <div className="min-w-0">
                       <span className="text-sm font-medium text-foreground block truncate">{c.courseName}</span>
-                      {isPending && (
+                      {isExpired ? (
+                        <p className="text-[11px] text-destructive flex items-center gap-1">
+                          <XCircle className="h-3 w-3" /> Expired
+                        </p>
+                      ) : isPending ? (
                         <p className="text-[11px] text-warning flex items-center gap-1">
                           <Clock className="h-3 w-3" /> Pending approval
                         </p>
-                      )}
-                      {isRejected && (
+                      ) : isRejected ? (
                         <p className="text-[11px] text-destructive flex items-center gap-1">
                           <XCircle className="h-3 w-3" /> Rejected
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
@@ -365,7 +368,7 @@ export default function ProfilePage() {
                     </button>
                   )}
 
-                  {isRejected && (
+                  {isRejected && !isExpired && (
                     <button
                       onClick={() => {
                         resetPaymentForm();
