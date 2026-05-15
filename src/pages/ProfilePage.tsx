@@ -527,7 +527,13 @@ export default function ProfilePage() {
       </Dialog>
 
       {/* Course Resources */}
-      {isActiveApproved ? (
+      {isActiveInactive ? (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-center space-y-2">
+          <XCircle className="h-6 w-6 text-destructive mx-auto" />
+          <p className="text-sm text-destructive font-medium">Course Expired</p>
+          <p className="text-xs text-muted-foreground">This course is no longer available.</p>
+        </div>
+      ) : isActiveApproved ? (
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <h3 className="font-semibold text-foreground text-sm mb-2">🎓 Course Resources</h3>
 
