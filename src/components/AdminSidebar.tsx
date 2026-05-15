@@ -1,10 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   X, LayoutDashboard, Users, GraduationCap, Video,
-  Settings, LogOut, Download, Timer,
+  Settings, LogOut, Download, Timer, KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -47,9 +48,15 @@ function NavLink({ to, icon: Icon, label, onClick, pathname }: {
 }
 
 function SidebarContent({ onClose, isMobile }: { onClose: () => void; isMobile: boolean }) {
-  const { logout } = useAuth();
+  const { logout, resetPassword, userDoc } = useAuth();
   const { pathname } = useLocation();
   const handleClose = isMobile ? onClose : undefined;
+
+  const handleResetPassword = async () => {
+    if (!userDoc?.email) return;
+    try { await resetPassword(userDoc.email); toast.success("Password reset email sent"); }
+    catch { toast.error("Failed to send reset email"); }
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -58,6 +65,30 @@ function SidebarContent({ onClose, isMobile }: { onClose: () => void; isMobile: 
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.to} {...item} onClick={handleClose} pathname={pathname} />
         ))}
+
+        {/* Reset Password */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent w-full transition-colors">
+              <KeyRound className="h-4 w-4 shrink-0" />
+              Reset Password
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset Password</AlertDialogTitle>
+              <AlertDialogDescription>
+                A password reset email will be sent to {userDoc?.email}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={async () => { await handleResetPassword(); onClose(); }}>
+                Send Email
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Logout — placed with nav items */}
         <AlertDialog>
