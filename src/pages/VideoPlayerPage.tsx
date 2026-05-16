@@ -98,9 +98,10 @@ function LiveBadge({ pulse = true }: { pulse?: boolean }) {
 export default function VideoPlayerPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userDoc } = useAuth();
   const settings = useAppSettings();
   const isMobile = useIsMobile();
+  const isAdmin = userDoc?.role === "admin";
   const [video, setVideo] = useState<Video | null>(null);
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
   const [allChapters, setAllChapters] = useState<
@@ -109,6 +110,7 @@ export default function VideoPlayerPage() {
   const [chapterFilter, setChapterFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [courseInactive, setCourseInactive] = useState(false);
+  const [sideTab, setSideTab] = useState<"chat" | "videos">("chat");
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
