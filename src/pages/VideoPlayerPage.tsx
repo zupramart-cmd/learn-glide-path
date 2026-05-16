@@ -30,6 +30,8 @@ import {
 import { FloatingButtons } from "@/components/FloatingButtons";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VideoPlayerSkeleton } from "@/components/skeletons/VideoPlayerSkeleton";
+import { LiveChat } from "@/components/LiveChat";
+import { MessageCircle, ListVideo } from "lucide-react";
 
 declare global {
   interface Window {
