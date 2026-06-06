@@ -24,6 +24,8 @@ export interface UserDoc {
   paymentInfo: PaymentInfo;
   /** Pre-stored list of exam IDs the user has submitted — eliminates per-user submissions queries. */
   submittedExamIds?: string[];
+  /** Single-device login token. Written on every successful login; older devices get logged out via realtime snapshot mismatch. */
+  sessionToken?: string;
   createdAt: Timestamp;
 }
 
