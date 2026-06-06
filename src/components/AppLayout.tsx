@@ -2,9 +2,8 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
-import { UserSidebar } from "@/components/UserSidebar";
+import { UserSidebar, DesktopUserSidebar } from "@/components/UserSidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
-import { DesktopUserSidebar } from "@/components/DesktopUserSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -18,8 +17,8 @@ export function AppLayout() {
   // Hide all navigation when taking an exam
   const isExamActive = /^\/exams\/[^/]+$/.test(pathname);
 
-  // Show bottom nav on mobile always (except exam), on desktop for admin
-  const showBottomNav = (isMobile || isAdmin) && !isExamActive;
+  // Show bottom nav ONLY on mobile (any role) — never on desktop
+  const showBottomNav = isMobile && !isExamActive;
 
   // Show desktop sidebar for user on non-video pages
   const isVideoPage = pathname.startsWith("/video/");
@@ -47,7 +46,7 @@ export function AppLayout() {
           {isMobile && <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
           <div className="flex flex-1">
             {!isMobile && <AdminSidebar open={true} onClose={() => {}} />}
-            <main className="flex-1 pb-16 overflow-x-hidden">
+            <main className={`flex-1 overflow-x-hidden ${isMobile ? "pb-16" : ""}`}>
               <Outlet />
             </main>
           </div>

@@ -3,7 +3,7 @@ import { FolderOpen, Timer, User, LayoutGrid, Video, GraduationCap } from "lucid
 import { useAuth } from "@/contexts/AuthContext";
 
 const userTabs = [
-  { to: "/home", icon: GraduationCap, label: "Courses" },
+  { to: "/courses", icon: GraduationCap, label: "Courses" },
   { to: "/content", icon: FolderOpen, label: "Content" },
   { to: "/exams", icon: Timer, label: "Exam" },
   { to: "/profile", icon: User, label: "Profile" },
@@ -22,22 +22,43 @@ export function BottomNav() {
   const isAdmin = userDoc?.role === "admin";
   const tabs = isAdmin ? adminTabs : userTabs;
 
+  const isTabActive = (to: string) => {
+    const base = to.split("?")[0];
+    if (base === "/courses") return pathname === "/courses" || pathname === "/";
+    if (base === "/admin") return pathname === "/admin";
+    return pathname === base || pathname.startsWith(base + "/");
+  };
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border pb-safe">
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around h-16">
         {tabs.map((tab) => {
-          const active = pathname === tab.to || (tab.to !== "/" && pathname.startsWith(tab.to.split("?")[0]));
+          const active = isTabActive(tab.to);
           const linkTo = (tab as any).addParam ? `${tab.to}?add=true` : tab.to;
           return (
             <Link
               key={tab.to}
               to={linkTo}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 text-[10px] transition-colors ${
-                active ? "text-foreground font-medium" : "text-muted-foreground"
-              }`}
+              className="relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-[10px] transition-colors"
             >
-              <tab.icon className="h-5 w-5" />
-              <span>{tab.label}</span>
+              <span
+                className={`flex items-center justify-center h-8 w-12 rounded-full transition-all duration-300 ${
+                  active ? "bg-primary/10" : ""
+                }`}
+              >
+                <tab.icon
+                  className={`h-5 w-5 transition-colors ${
+                    active ? "text-primary" : "text-muted-foreground"
+                  }`}
+                />
+              </span>
+              <span
+                className={`transition-colors ${
+                  active ? "text-primary font-semibold" : "text-muted-foreground"
+                }`}
+              >
+                {tab.label}
+              </span>
             </Link>
           );
         })}

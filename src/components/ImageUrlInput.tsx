@@ -45,7 +45,7 @@ export function ImageUrlInput({ label, value, onChange, placeholder = "https://.
           <img
             src={value}
             alt="Preview"
-            className="w-24 h-24 rounded-lg object-cover border border-border"
+            className="w-40 aspect-video rounded-lg object-cover border border-border"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
         </div>
