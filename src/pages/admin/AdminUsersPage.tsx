@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { updateDoc, doc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { UserDoc, EnrollRequest, Course } from "@/types";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { toast } from "sonner";
 import {
   Check, X, ChevronLeft, Search, Users, BookOpen,
@@ -127,6 +127,7 @@ export default function AdminUsersPage() {
 
       invalidateCache("users");
       invalidateCache("enrollRequests");
+      await Promise.all([bumpVersion(db, "users"), bumpVersion(db, "enrollRequests")]);
 
       toast.success(`✓ ${courseName} — approved`);
     } catch (e: any) {
@@ -178,6 +179,7 @@ export default function AdminUsersPage() {
 
       invalidateCache("users");
       invalidateCache("enrollRequests");
+      await Promise.all([bumpVersion(db, "users"), bumpVersion(db, "enrollRequests")]);
 
       toast.success(`✗ ${courseName} — rejected`);
     } catch (e: any) {
@@ -311,7 +313,7 @@ export default function AdminUsersPage() {
                         {/* Course header row */}
                         <div className="flex items-center gap-3 p-3">
                           {c.courseThumbnail && (
-                            <img src={c.courseThumbnail} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                            <img src={c.courseThumbnail} alt="" className="w-20 aspect-video rounded-lg object-cover flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -436,18 +438,6 @@ export default function AdminUsersPage() {
         onApprove={handleApproveRequest}
         onReject={handleRejectRequest}
       />
-
-      {/* Search */}
-      <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search by name, email, or course…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-        />
-      </div>
 
       {/* Course filter */}
       <div className="mb-3">
@@ -591,13 +581,10 @@ function TnxVerificationPanel({
 
   return (
     <div className="mb-4 p-3 sm:p-4 rounded-xl border border-primary/20 bg-primary/5">
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-2 mb-2">
         <Receipt className="h-4 w-4 text-primary" />
         <p className="text-sm font-semibold text-foreground">Transaction ID Verify</p>
       </div>
-      <p className="text-[11px] text-muted-foreground mb-2">
-        SMS থেকে কপি করা Transaction ID এখানে পেস্ট করুন। ম্যাচ করলে সরাসরি Approve / Reject করতে পারবেন।
-      </p>
       <input
         type="text"
         placeholder="Paste Transaction ID…"
@@ -606,9 +593,6 @@ function TnxVerificationPanel({
         className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
 
-      {q.length > 0 && q.length < 3 && (
-        <p className="text-[11px] text-muted-foreground mt-2">কমপক্ষে ৩ অক্ষর লিখুন…</p>
-      )}
 
       {q.length >= 3 && (
         <div className="mt-3 space-y-2">

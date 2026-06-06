@@ -19,7 +19,6 @@ import {
   ArrowLeft,
   Filter,
   Check,
-  Radio,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,8 +29,6 @@ import {
 import { FloatingButtons } from "@/components/FloatingButtons";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VideoPlayerSkeleton } from "@/components/skeletons/VideoPlayerSkeleton";
-import { LiveChat } from "@/components/LiveChat";
-import { MessageCircle, ListVideo } from "lucide-react";
 
 declare global {
   interface Window {
@@ -58,7 +55,6 @@ const formatTime = (s: number) => {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 };
 
-// Load YT API once globally
 let ytApiLoaded = false;
 let ytApiCallbacks: (() => void)[] = [];
 
@@ -80,28 +76,12 @@ function ensureYTApi(cb: () => void) {
   }
 }
 
-// ── Live Badge ──────────────────────────────────────────────────────────────
-function LiveBadge({ pulse = true }: { pulse?: boolean }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
-      {pulse && (
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-        </span>
-      )}
-      LIVE
-    </span>
-  );
-}
-
 export default function VideoPlayerPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
-  const { user, userDoc } = useAuth();
+  const { user } = useAuth();
   const settings = useAppSettings();
   const isMobile = useIsMobile();
-  const isAdmin = userDoc?.role === "admin";
   const [video, setVideo] = useState<Video | null>(null);
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
   const [allChapters, setAllChapters] = useState<
@@ -110,7 +90,6 @@ export default function VideoPlayerPage() {
   const [chapterFilter, setChapterFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [courseInactive, setCourseInactive] = useState(false);
-  const [sideTab, setSideTab] = useState<"chat" | "videos">("chat");
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,7 +118,6 @@ export default function VideoPlayerPage() {
     };
   }, []);
 
-  // Fetch video data
   useEffect(() => {
     if (!user) {
       navigate("/auth?mode=login");
@@ -200,7 +178,6 @@ export default function VideoPlayerPage() {
     };
   }, [videoId, user]);
 
-  // Initialize YouTube player
   useEffect(() => {
     if (!video || loading) return;
     const ytId = getYouTubeId(video.videoURL);
@@ -228,7 +205,6 @@ export default function VideoPlayerPage() {
     container.appendChild(playerEl);
 
     const currentVideoId = video.id;
-    const isLive = video.isLive;
 
     const initPlayer = () => {
       if (!mountedRef.current) return;
@@ -253,7 +229,6 @@ export default function VideoPlayerPage() {
           onReady: (e: any) => {
             if (!mountedRef.current) return;
             setPlayerReady(true);
-            // For live streams getDuration() returns Infinity or 0
             const dur = e.target.getDuration();
             setDuration(isFinite(dur) && dur > 0 ? dur : 0);
             e.target.playVideo();
@@ -281,10 +256,9 @@ export default function VideoPlayerPage() {
     };
   }, [video?.id, loading]);
 
-  // Progress interval — skip for live
   useEffect(() => {
     if (progressInterval.current) clearInterval(progressInterval.current);
-    if (playerReady && isPlaying && !video?.isLive) {
+    if (playerReady && isPlaying) {
       progressInterval.current = setInterval(() => {
         if (playerRef.current?.getCurrentTime) {
           setCurrentTime(playerRef.current.getCurrentTime());
@@ -295,7 +269,7 @@ export default function VideoPlayerPage() {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [playerReady, isPlaying, video?.isLive]);
+  }, [playerReady, isPlaying]);
 
   useEffect(() => {
     if (showControls && isPlaying) {
@@ -315,19 +289,18 @@ export default function VideoPlayerPage() {
 
   const seek = useCallback(
     (seconds: number) => {
-      if (!playerRef.current || video?.isLive) return;
+      if (!playerRef.current) return;
       const t = playerRef.current.getCurrentTime() + seconds;
       playerRef.current.seekTo(Math.max(0, Math.min(t, duration)), true);
     },
-    [duration, video?.isLive]
+    [duration]
   );
 
   const cycleSpeed = useCallback(() => {
-    if (video?.isLive) return;
     const next = (speedIndex + 1) % SPEEDS.length;
     setSpeedIndex(next);
     if (playerRef.current) playerRef.current.setPlaybackRate(SPEEDS[next]);
-  }, [speedIndex, video?.isLive]);
+  }, [speedIndex]);
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
@@ -386,30 +359,26 @@ export default function VideoPlayerPage() {
       const half = rect.width / 2;
 
       if (now - lastTap.current.time < 300) {
-        // Double-tap seeks only for recorded videos
-        if (!video?.isLive) {
-          const side = x < half ? "left" : "right";
-          seek(side === "left" ? -10 : 10);
-          setSeekFeedback({ side, visible: true });
-          if (seekFeedbackTimeout.current)
-            clearTimeout(seekFeedbackTimeout.current);
-          seekFeedbackTimeout.current = setTimeout(
-            () => setSeekFeedback((p) => ({ ...p, visible: false })),
-            600
-          );
-        }
+        const side = x < half ? "left" : "right";
+        seek(side === "left" ? -10 : 10);
+        setSeekFeedback({ side, visible: true });
+        if (seekFeedbackTimeout.current)
+          clearTimeout(seekFeedbackTimeout.current);
+        seekFeedbackTimeout.current = setTimeout(
+          () => setSeekFeedback((p) => ({ ...p, visible: false })),
+          600
+        );
       }
       lastTap.current = { time: now, x };
     },
-    [seek, video?.isLive]
+    [seek]
   );
 
   const handleSeekBar = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (video?.isLive) return;
     const t = Number(e.target.value);
     setCurrentTime(t);
     playerRef.current?.seekTo(t, true);
-  }, [video?.isLive]);
+  }, []);
 
   if (courseInactive) {
     return (
@@ -427,13 +396,17 @@ export default function VideoPlayerPage() {
       <div className="p-4 text-center text-muted-foreground">Video not found.</div>
     );
 
-  const isLive = video!.isLive === true;
   const currentIndex = relatedVideos.findIndex((v) => v.id === videoId);
   const prevVideo = currentIndex > 0 ? relatedVideos[currentIndex - 1] : null;
   const nextVideo =
     currentIndex < relatedVideos.length - 1
       ? relatedVideos[currentIndex + 1]
       : null;
+
+  const filteredRelated =
+    chapterFilter === "All"
+      ? relatedVideos
+      : relatedVideos.filter((v) => v.chapterName === chapterFilter);
 
   return (
     <div
@@ -446,7 +419,6 @@ export default function VideoPlayerPage() {
     >
       <div className="lg:flex-1 flex flex-col h-full">
         <div className="z-30 bg-background shrink-0">
-          {/* ── Video Player ── */}
           <div
             ref={containerRef}
             className="relative aspect-video bg-black overflow-hidden select-none"
@@ -459,18 +431,7 @@ export default function VideoPlayerPage() {
               style={{ pointerEvents: "auto" }}
             />
 
-            {/* ── LIVE overlay top-left ── */}
-            {isLive && (
-              <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-                <LiveBadge />
-                <span className="text-white text-xs bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  Live Class
-                </span>
-              </div>
-            )}
-
-            {/* Seek feedback (recorded only) */}
-            {!isLive && seekFeedback.visible && (
+            {seekFeedback.visible && (
               <div
                 className={`absolute top-1/2 -translate-y-1/2 z-20 bg-foreground/20 rounded-full w-16 h-16 flex items-center justify-center animate-fade-in ${
                   seekFeedback.side === "left" ? "left-8" : "right-8"
@@ -482,136 +443,69 @@ export default function VideoPlayerPage() {
               </div>
             )}
 
-            {/* ── Controls overlay ── */}
             <div
               className={`absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${
                 showControls ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
             >
-              {/* Seek bar — only for recorded */}
-              {!isLive && (
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  value={currentTime}
-                  onChange={handleSeekBar}
-                  className="w-full h-1 appearance-none bg-white/30 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-
-              {/* Live progress bar (red, non-interactive) */}
-              {isLive && (
-                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mb-0">
-                  <div className="h-full bg-red-500 w-full animate-pulse rounded-full" />
-                </div>
-              )}
+              <input
+                type="range"
+                min={0}
+                max={duration || 0}
+                value={currentTime}
+                onChange={handleSeekBar}
+                className="w-full h-1 appearance-none bg-white/30 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                onClick={(e) => e.stopPropagation()}
+              />
 
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-1.5">
-                  {/* Seek back — recorded only */}
-                  {!isLive && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        seek(-10);
-                      }}
-                      className="text-white p-1"
-                    >
-                      <RotateCcw className="h-5 w-5" />
-                    </button>
-                  )}
-
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePlay();
-                    }}
+                    onClick={(e) => { e.stopPropagation(); seek(-10); }}
                     className="text-white p-1"
                   >
-                    {isPlaying ? (
-                      <Pause className="h-6 w-6" />
-                    ) : (
-                      <Play className="h-6 w-6" />
-                    )}
+                    <RotateCcw className="h-5 w-5" />
                   </button>
 
-                  {/* Seek forward — recorded only */}
-                  {!isLive && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        seek(10);
-                      }}
-                      className="text-white p-1"
-                    >
-                      <RotateCw className="h-5 w-5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                    className="text-white p-1"
+                  >
+                    {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                  </button>
 
-                  {/* Time display */}
-                  {!isLive && (
-                    <span className="text-white text-xs ml-1">
-                      {formatTime(currentTime)} / {formatTime(duration)}
-                    </span>
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); seek(10); }}
+                    className="text-white p-1"
+                  >
+                    <RotateCw className="h-5 w-5" />
+                  </button>
 
-                  {/* Live label in controls */}
-                  {isLive && (
-                    <span className="flex items-center gap-1.5 text-white text-xs ml-1">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                      </span>
-                      LIVE
-                    </span>
-                  )}
+                  <span className="text-white text-xs ml-1">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Speed — recorded only */}
-                  {!isLive && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cycleSpeed();
-                      }}
-                      className="text-white text-xs font-medium px-2 py-0.5 bg-white/20 rounded min-w-[3.5rem]"
-                    >
-                      {SPEEDS[speedIndex] === 1 ? "Normal" : `${SPEEDS[speedIndex]}x`}
-                    </button>
-                  )}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFullscreen();
-                    }}
+                    onClick={(e) => { e.stopPropagation(); cycleSpeed(); }}
+                    className="text-white text-xs font-medium px-2 py-0.5 bg-white/20 rounded min-w-[3.5rem]"
+                  >
+                    {SPEEDS[speedIndex] === 1 ? "Normal" : `${SPEEDS[speedIndex]}x`}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
                     className="text-white p-1"
                   >
-                    {isFullscreen ? (
-                      <Minimize className="h-4 w-4" />
-                    ) : (
-                      <Maximize className="h-4 w-4" />
-                    )}
+                    {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Title & actions ── */}
           <div className="p-4">
-            <div className="flex items-start gap-2">
-              <h2 className="font-semibold text-foreground flex-1">{video!.title}</h2>
-              {isLive && <LiveBadge pulse />}
-            </div>
-
-            {isLive && (
-              <p className="text-xs text-muted-foreground mt-1">
-                এই ক্লাসটি এখন সরাসরি সম্প্রচারিত হচ্ছে।
-              </p>
-            )}
+            <h2 className="font-semibold text-foreground">{video!.title}</h2>
 
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <button
@@ -653,26 +547,16 @@ export default function VideoPlayerPage() {
         {/* Side panel (mobile) */}
         <div className="flex-1 overflow-hidden lg:hidden flex flex-col p-4 pb-2 lg:pb-0">
           <SidePanelHeader
-            isLive={isLive}
-            sideTab={sideTab}
-            setSideTab={setSideTab}
             allChapters={allChapters}
             chapterFilter={chapterFilter}
             setChapterFilter={setChapterFilter}
           />
           <div className="flex-1 overflow-hidden mt-3">
-            {isLive && sideTab === "chat" ? (
-              <LiveChat videoId={video!.id} isAdmin={isAdmin} />
-            ) : (
-              <div className="h-full overflow-y-auto space-y-2">
-                {(chapterFilter === "All"
-                  ? relatedVideos
-                  : relatedVideos.filter((v) => v.chapterName === chapterFilter)
-                ).map((v) => (
-                  <VideoListItem key={v.id} v={v} videoId={videoId} settings={settings} />
-                ))}
-              </div>
-            )}
+            <div className="h-full overflow-y-auto space-y-2">
+              {filteredRelated.map((v) => (
+                <VideoListItem key={v.id} v={v} videoId={videoId} settings={settings} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -680,26 +564,16 @@ export default function VideoPlayerPage() {
       {/* Side panel (desktop) */}
       <div className="hidden lg:flex lg:w-80 flex-col h-full">
         <SidePanelHeader
-          isLive={isLive}
-          sideTab={sideTab}
-          setSideTab={setSideTab}
           allChapters={allChapters}
           chapterFilter={chapterFilter}
           setChapterFilter={setChapterFilter}
         />
         <div className="flex-1 overflow-hidden mt-3">
-          {isLive && sideTab === "chat" ? (
-            <LiveChat videoId={video!.id} isAdmin={isAdmin} />
-          ) : (
-            <div className="h-full overflow-y-auto space-y-2">
-              {(chapterFilter === "All"
-                ? relatedVideos
-                : relatedVideos.filter((v) => v.chapterName === chapterFilter)
-              ).map((v) => (
-                <VideoListItem key={v.id} v={v} videoId={videoId} settings={settings} />
-              ))}
-            </div>
-          )}
+          <div className="h-full overflow-y-auto space-y-2">
+            {filteredRelated.map((v) => (
+              <VideoListItem key={v.id} v={v} videoId={videoId} settings={settings} />
+            ))}
+          </div>
         </div>
       </div>
       <FloatingButtons />
@@ -708,51 +582,18 @@ export default function VideoPlayerPage() {
 }
 
 function SidePanelHeader({
-  isLive,
-  sideTab,
-  setSideTab,
   allChapters,
   chapterFilter,
   setChapterFilter,
 }: {
-  isLive: boolean;
-  sideTab: "chat" | "videos";
-  setSideTab: (t: "chat" | "videos") => void;
   allChapters: { chapterId: string; chapterName: string }[];
   chapterFilter: string;
   setChapterFilter: (s: string) => void;
 }) {
-  if (!isLive) {
-    return (
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-foreground">More Videos</h3>
-        {allChapters.length > 0 && (
-          <ChapterDropdown chapters={allChapters} value={chapterFilter} onChange={setChapterFilter} />
-        )}
-      </div>
-    );
-  }
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="inline-flex rounded-lg bg-accent p-0.5 border border-border">
-        <button
-          onClick={() => setSideTab("chat")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-            sideTab === "chat" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          <MessageCircle className="h-3.5 w-3.5" /> Live Chat
-        </button>
-        <button
-          onClick={() => setSideTab("videos")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-            sideTab === "videos" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          <ListVideo className="h-3.5 w-3.5" /> Videos
-        </button>
-      </div>
-      {sideTab === "videos" && allChapters.length > 0 && (
+    <div className="flex items-center justify-between">
+      <h3 className="font-semibold text-foreground">More Videos</h3>
+      {allChapters.length > 0 && (
         <ChapterDropdown chapters={allChapters} value={chapterFilter} onChange={setChapterFilter} />
       )}
     </div>
@@ -813,7 +654,6 @@ function VideoListItem({
   settings: any;
 }) {
   const navigate = useNavigate();
-  const isLive = v.isLive === true;
 
   return (
     <button
@@ -824,7 +664,6 @@ function VideoListItem({
           : "hover:bg-accent"
       }`}
     >
-      {/* Thumbnail */}
       <div className="relative w-28 h-16 flex-shrink-0">
         {v.thumbnail ? (
           <img
@@ -834,16 +673,6 @@ function VideoListItem({
           />
         ) : (
           <div className="w-full h-full bg-muted rounded-md" />
-        )}
-        {/* Live badge on thumbnail */}
-        {isLive && (
-          <span className="absolute bottom-1 left-1 inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
-            </span>
-            LIVE
-          </span>
         )}
       </div>
 

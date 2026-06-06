@@ -2,18 +2,21 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection, deleteDoc, doc, updateDoc, setDoc, query, where, getDocs,
+  serverTimestamp,
 } from "firebase/firestore";
 import { examDb } from "@/lib/examFirebase";
 import { db } from "@/lib/firebase";
-import { Exam, ExamSubmission } from "@/types/exam";
+import { Exam, ExamSubmission, ExamRankingEntry } from "@/types/exam";
 import { Course } from "@/types";
 import { toast } from "sonner";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import {
   Trash2, Edit, Eye, Plus, Download, Upload, Trophy,
-  FileText, ChevronLeft, ChevronRight,
+  FileText, ChevronLeft, ChevronRight, Share2, Send, Undo2,
 } from "lucide-react";
+import { useExamAutoPublish } from "@/hooks/useExamAutoPublish";
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
+import { AdminListSkeleton, SubmissionListSkeleton } from "@/components/skeletons";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -37,6 +40,7 @@ export default function AdminExamsPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   // ─── In-memory cache: submissions per examId ───────────────────────────────
   const submissionsCache = useRef<Map<string, ExamSubmission[]>>(new Map());
@@ -60,10 +64,17 @@ export default function AdminExamsPage() {
     fetchCourses();
   }, []);
 
+  // ─── Auto-publish: when an exam's endTime passes, publish + compute rankings ─
+  useExamAutoPublish(exams, async (exam) => {
+    if (exam.resultPublished) return;
+    await togglePublish(exam);
+  });
+
   // ─── Delete: update local state instead of re-fetching ────────────────────
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(examDb, "exams", id));
     invalidateCache("exams");
+    await bumpVersion(examDb, "exams");
     toast.success("Exam deleted");
     setExams((prev) => prev.filter((e) => e.id !== id));
     submissionsCache.current.delete(id);
@@ -73,6 +84,7 @@ export default function AdminExamsPage() {
   const viewResults = async (exam: Exam, forceRefresh = false) => {
     setResultsExam(exam);
     setActiveTab("results");
+    setVisibleCount(10);
 
     // Cache hit — Firebase read লাগবে না
     if (!forceRefresh && submissionsCache.current.has(exam.id)) {
@@ -99,14 +111,39 @@ export default function AdminExamsPage() {
     }
   };
 
-  // ─── Publish toggle: update local state, no re-fetch ─────────────────────
+  // ─── Publish toggle: also pre-compute rankings so students pay 0 reads ────
   const togglePublish = async (exam: Exam) => {
     const newValue = !exam.resultPublished;
-    await updateDoc(doc(examDb, "exams", exam.id), { resultPublished: newValue });
+    const updates: Record<string, any> = { resultPublished: newValue };
+
+    if (newValue) {
+      // Ensure rankings are pre-computed and stored on the exam doc.
+      // This is a single bulk read at publish-time, paid once by the admin.
+      let subs = submissionsCache.current.get(exam.id);
+      if (!subs) {
+        const q = query(collection(examDb, "submissions"), where("examId", "==", exam.id));
+        const snap = await getDocs(q);
+        subs = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as ExamSubmission))
+          .sort((a, b) => b.obtainedMarks - a.obtainedMarks);
+        submissionsCache.current.set(exam.id, subs);
+      }
+      const rankings: ExamRankingEntry[] = subs.map((s, idx) => ({
+        userId: s.userId,
+        obtainedMarks: s.obtainedMarks,
+        rank: idx + 1,
+      }));
+      updates.rankings = rankings;
+      updates.totalParticipants = rankings.length;
+      updates.rankingsComputedAt = serverTimestamp();
+    }
+
+    await updateDoc(doc(examDb, "exams", exam.id), updates);
     invalidateCache("exams");
+    await bumpVersion(examDb, "exams");
     toast.success(newValue ? "Result published" : "Result unpublished");
-    setExams((prev) =>                                                   // ✅ 0 extra reads
-      prev.map((e) => (e.id === exam.id ? { ...e, resultPublished: newValue } : e))
+    setExams((prev) =>
+      prev.map((e) => (e.id === exam.id ? { ...e, ...updates } as Exam : e))
     );
   };
 
@@ -145,6 +182,7 @@ export default function AdminExamsPage() {
       }
       toast.success(`${arr.length} exam(s) imported`);
       invalidateCache("exams");
+      await bumpVersion(examDb, "exams");
       fetchExams();
     } catch (err: any) {
       toast.error("Import failed: " + err.message);
@@ -216,19 +254,6 @@ export default function AdminExamsPage() {
         </button>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => exportExams(filteredExams)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent"
-        >
-          <Download className="h-3 w-3" /> Export {filterCourse ? "Filtered" : "All"}
-        </button>
-        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent cursor-pointer">
-          <Upload className="h-3 w-3" /> Import
-          <input type="file" accept=".json" onChange={handleImportExams} className="hidden" />
-        </label>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full mb-4">
           <TabsTrigger value="exams" className="flex-1">Exams</TabsTrigger>
@@ -249,7 +274,7 @@ export default function AdminExamsPage() {
           </select>
 
           {loading ? (
-            <p className="text-muted-foreground text-sm text-center py-8">Loading...</p>
+            <AdminListSkeleton count={5} />
           ) : paginatedExams.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">No exams yet</p>
           ) : (
@@ -269,12 +294,12 @@ export default function AdminExamsPage() {
                   <div key={exam.id} className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                     {/* Card Header */}
                     <div className="px-4 pt-4 pb-3">
-                      <div className="flex flex-wrap items-start gap-2 mb-1.5">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
                         <h3 className="font-semibold text-foreground text-sm leading-snug flex-1 min-w-0">
                           {exam.title}
                         </h3>
                         <span
-                          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
                             exam.resultPublished
                               ? "bg-green-500/10 text-green-600 dark:text-green-400"
                               : "bg-muted text-muted-foreground"
@@ -287,9 +312,6 @@ export default function AdminExamsPage() {
                       <p className="text-xs text-muted-foreground mb-3 truncate">{exam.courseName}</p>
 
                       <div className="flex flex-wrap gap-1.5">
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${typeColor}`}>
-                          {typeLabel}
-                        </span>
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-accent text-foreground">
                           {exam.questions?.length || 0} প্রশ্ন
                         </span>
@@ -320,55 +342,72 @@ export default function AdminExamsPage() {
                       )}
                     </div>
 
-                    {/* Action Bar */}
-                    <div className="flex items-center justify-between gap-1 px-3 py-2 border-t border-border bg-accent/30">
-                      <button
-                        onClick={() => togglePublish(exam)}
-                        title={exam.resultPublished ? "Unpublish Result" : "Publish Result"}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
-                          exam.resultPublished
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20"
-                            : "bg-accent text-muted-foreground hover:bg-accent/80"
-                        }`}
-                      >
-                        <Trophy className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {exam.resultPublished ? "Unpublish" : "Publish"}
-                        </span>
-                      </button>
-
-                      <div className="flex items-center gap-0.5">
+                    {/* Action Bar — single scrollable row */}
+                    <div className="px-3 py-2 border-t border-border bg-accent/30 overflow-x-auto">
+                      <div className="flex items-center gap-1.5 min-w-max">
+                        {/* Q&A PDF */}
                         <button
                           onClick={() => downloadQuestionsPDF(exam)}
-                          title="Download Q&A PDF"
-                          className="p-2 hover:bg-accent rounded-lg transition-colors"
+                          title="Download Questions & Answers PDF"
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent border border-border rounded-lg text-[11px] font-medium text-foreground hover:bg-accent/80 transition-colors whitespace-nowrap"
                         >
-                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <FileText className="h-3.5 w-3.5 shrink-0" />
+                          Q&A PDF
                         </button>
-                        <button
-                          onClick={() => exportExams([exam])}
-                          title="Export"
-                          className="p-2 hover:bg-accent rounded-lg transition-colors"
-                        >
-                          <Download className="h-4 w-4 text-muted-foreground" />
-                        </button>
+
+                        {/* View Results */}
                         <button
                           onClick={() => viewResults(exam)}
                           title="View Results"
-                          className="p-2 hover:bg-accent rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-primary-foreground rounded-lg text-[11px] font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                         >
-                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <Eye className="h-3.5 w-3.5 shrink-0" />
+                          Results
                         </button>
+
+                        {/* Publish / Unpublish */}
+                        {exam.resultPublished ? (
+                          <button
+                            onClick={() => togglePublish(exam)}
+                            title="Unpublish result"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors whitespace-nowrap"
+                          >
+                            <Undo2 className="h-3.5 w-3.5 shrink-0" />
+                            Unpublish
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => togglePublish(exam)}
+                            title="Publish result + compute rankings"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-500/10 border border-green-500/30 rounded-lg text-[11px] font-medium text-green-700 dark:text-green-400 hover:bg-green-500/20 transition-colors whitespace-nowrap"
+                          >
+                            <Send className="h-3.5 w-3.5 shrink-0" />
+                            Publish
+                          </button>
+                        )}
+
+                        {/* Export — icon only */}
+                        <button
+                          onClick={() => exportExams([exam])}
+                          title="Export Exam"
+                          className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+                        >
+                          <Share2 className="h-4 w-4 text-muted-foreground" />
+                        </button>
+
+                        {/* Edit — icon only */}
                         <button
                           onClick={() => navigate(`/admin/exams/add?edit=${exam.id}`)}
                           title="Edit"
-                          className="p-2 hover:bg-accent rounded-lg transition-colors"
+                          className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
                         >
                           <Edit className="h-4 w-4 text-muted-foreground" />
                         </button>
+
+                        {/* Delete — icon only */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <button title="Delete" className="p-2 hover:bg-red-500/10 rounded-lg transition-colors">
+                            <button title="Delete" className="p-2 hover:bg-red-500/10 rounded-lg transition-colors shrink-0">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </button>
                           </AlertDialogTrigger>
@@ -444,12 +483,12 @@ export default function AdminExamsPage() {
               </div>
 
               {loadingResults ? (
-                <p className="text-muted-foreground text-sm text-center py-8">Loading results...</p>
+                <SubmissionListSkeleton count={6} />
               ) : submissions.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No submissions yet</p>
               ) : (
                 <div className="space-y-2">
-                  {submissions.map((sub, idx) => {
+                  {submissions.slice(0, visibleCount).map((sub, idx) => {
                     const passed = sub.obtainedMarks >= (resultsExam.passMark || 0);
                     return (
                       <div key={sub.id} className="bg-card border border-border rounded-xl p-3">
@@ -488,6 +527,15 @@ export default function AdminExamsPage() {
                       </div>
                     );
                   })}
+
+                  {visibleCount < submissions.length && (
+                    <button
+                      onClick={() => setVisibleCount((v) => v + 10)}
+                      className="w-full py-2.5 mt-1 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    >
+                      Load More ({submissions.length - visibleCount} remaining)
+                    </button>
+                  )}
                 </div>
               )}
             </div>

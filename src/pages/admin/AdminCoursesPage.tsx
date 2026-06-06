@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { Course, Subject, Instructor, DiscussionGroup, Chapter } from "@/types";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronLeft, GripVertical, BookOpen, Users, MessageSquare, FileText, Link2, Image, Power, PowerOff } from "lucide-react";
+import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronLeft, GripVertical, BookOpen, Users, MessageSquare, FileText, Link2, Image, PowerOff, Power } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -100,6 +100,7 @@ export default function AdminCoursesPage() {
         await addDoc(collection(db, "courses"), data);
         toast.success("Course added");
       }
+      await bumpVersion(db, "courses");
       closeForm(); fetchCourses(true);
     } catch (err: any) { toast.error(err.message); }
     setSubmitting(false);
@@ -107,15 +108,16 @@ export default function AdminCoursesPage() {
 
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, "courses", id));
+    await bumpVersion(db, "courses");
     toast.success("Course deleted"); fetchCourses(true);
   };
 
-  const toggleActive = async (c: Course) => {
-    const next = (c as any).isActive === false ? true : false;
-    await updateDoc(doc(db, "courses", c.id), { isActive: next });
-    setCourses((prev) => prev.map((x) => x.id === c.id ? { ...x, isActive: next } as any : x));
-    invalidateCache("courses");
-    toast.success(next ? "Course activated" : "Course deactivated");
+  const handleToggleActive = async (c: Course) => {
+    const newValue = (c as any).isActive === false ? true : false;
+    await updateDoc(doc(db, "courses", c.id), { isActive: newValue });
+    await bumpVersion(db, "courses");
+    toast.success(newValue ? "Course restored — students can now access exams" : "Course expired — exam access blocked for students");
+    fetchCourses(true);
   };
 
   const moveCourse = async (index: number, direction: "up" | "down") => {
@@ -139,9 +141,6 @@ export default function AdminCoursesPage() {
       <div className="animate-fade-in w-full max-w-2xl mx-auto overflow-x-hidden overflow-y-auto pb-8 box-border">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-          <button onClick={closeForm} className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2 hover:text-foreground transition-colors">
-            <ChevronLeft className="h-4 w-4" /> Back
-          </button>
           <h2 className="text-lg font-semibold text-foreground">{editCourse ? "Edit Course" : "New Course"}</h2>
         </div>
 
@@ -321,27 +320,60 @@ export default function AdminCoursesPage() {
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
-            {c.thumbnail ? <img src={c.thumbnail} alt="" className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover flex-shrink-0 ${(c as any).isActive === false ? "opacity-50 grayscale" : ""}`} /> : <div className="w-14 h-14 sm:w-16 sm:h-16 bg-muted rounded-lg flex-shrink-0 flex items-center justify-center"><Image className="h-5 w-5 text-muted-foreground/40" /></div>}
+            {c.thumbnail ? <img src={c.thumbnail} alt="" className="w-24 sm:w-28 aspect-video rounded-lg object-cover flex-shrink-0" /> : <div className="w-24 sm:w-28 aspect-video bg-muted rounded-lg flex-shrink-0 flex items-center justify-center"><Image className="h-5 w-5 text-muted-foreground/40" /></div>}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-foreground text-sm truncate">{c.courseName}</p>
-                {(c as any).isActive === false && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium shrink-0">Inactive</span>
-                )}
-              </div>
+              <p className="font-medium text-foreground text-sm truncate">{c.courseName}</p>
               <p className="text-xs text-muted-foreground mt-0.5">৳{c.price} • {c.subjects?.length || 0} subjects</p>
+              {(c as any).isActive === false && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20 mt-1">
+                  <PowerOff className="h-2.5 w-2.5" /> Expired
+                </span>
+              )}
             </div>
             <div className="flex gap-1 flex-shrink-0">
-              <button
-                onClick={() => toggleActive(c)}
-                title={(c as any).isActive === false ? "Activate" : "Deactivate"}
-                className="p-2 rounded-lg hover:bg-accent transition-colors"
-              >
-                {(c as any).isActive === false
-                  ? <PowerOff className="h-4 w-4 text-destructive" />
-                  : <Power className="h-4 w-4 text-success" />}
-              </button>
               <button onClick={() => openEdit(c)} className="p-2 rounded-lg hover:bg-accent transition-colors"><Edit className="h-4 w-4 text-muted-foreground" /></button>
+
+              {/* Expire / Restore toggle */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    className={`p-2 rounded-lg transition-colors ${
+                      (c as any).isActive === false
+                        ? "hover:bg-green-500/10 text-green-600"
+                        : "hover:bg-amber-500/10 text-amber-600"
+                    }`}
+                    title={(c as any).isActive === false ? "Restore Course" : "Expire Course"}
+                  >
+                    {(c as any).isActive === false
+                      ? <Power className="h-4 w-4" />
+                      : <PowerOff className="h-4 w-4" />}
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {(c as any).isActive === false ? "কোর্স Restore করবেন?" : "কোর্স Expire করবেন?"}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {(c as any).isActive === false
+                        ? `"${c.courseName}" কোর্সটি আবার active করা হবে। students পুনরায় exam access পাবে।`
+                        : `"${c.courseName}" কোর্সটি expired করা হবে। সকল enrolled students-এর exam access বন্ধ হয়ে যাবে।`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>বাতিল</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleToggleActive(c)}
+                      className={(c as any).isActive === false
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-amber-600 hover:bg-amber-700"}
+                    >
+                      {(c as any).isActive === false ? "হ্যাঁ, Restore করুন" : "হ্যাঁ, Expire করুন"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
               <AlertDialog>
                 <AlertDialogTrigger asChild><button className="p-2 rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive/70" /></button></AlertDialogTrigger>
                 <AlertDialogContent>

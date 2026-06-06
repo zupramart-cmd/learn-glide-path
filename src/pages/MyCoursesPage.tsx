@@ -217,7 +217,6 @@ export default function MyCoursesPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 sm:gap-4">
             {filtered.map((video) => {
-              const isLive = video.isLive === true;
               return (
                 <button
                   key={video.id}
@@ -237,40 +236,16 @@ export default function MyCoursesPage() {
                         No Thumbnail
                       </div>
                     )}
-
-                    {/* ── LIVE badge on card thumbnail ── */}
-                    {isLive && (
-                      <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                        </span>
-                        LIVE
-                      </div>
-                    )}
                   </div>
 
                   {/* Card body */}
                   <div className="px-3 py-2.5 sm:p-3">
-                    <div className="flex items-start gap-2">
-                      <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug flex-1">
-                        {video.title}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-muted-foreground">
-                        {settings.appName || "LMS"}
-                      </p>
-                      {isLive && (
-                        <span className="text-xs text-red-500 font-semibold flex items-center gap-1">
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-                          </span>
-                          Live Now
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug">
+                      {video.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {settings.appName || "LMS"}
+                    </p>
                   </div>
                 </button>
               );

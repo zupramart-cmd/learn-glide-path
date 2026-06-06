@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { collection, getDocs, addDoc, updateDoc, doc, getDoc, Timestamp } from "firebase/firestore";
 import { examDb } from "@/lib/examFirebase";
 import { db } from "@/lib/firebase";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { Exam, ExamQuestion } from "@/types/exam";
 import { Course } from "@/types";
 import { toast } from "sonner";
 import { Trash2, Plus, Upload, ChevronDown, ChevronUp, X, Image, Download, ExternalLink, FileText, CheckCircle, ArrowLeft } from "lucide-react";
+import { FormPageSkeleton } from "@/components/skeletons";
 
 /* ── Helpers ── */
 const FormSection = ({ icon: Icon, title, step, children }: { icon: any; title: string; step: number; children: React.ReactNode }) => (
@@ -222,20 +223,18 @@ export default function AdminAddExamPage() {
         toast.success("Exam created");
       }
       invalidateCache("exams");
+      await bumpVersion(examDb, "exams");
       setSuccess(true);
       setTimeout(() => { navigate("/admin/exams"); }, 1000);
     } catch (err: any) { toast.error(err.message); }
     setSaving(false);
   };
 
-  if (loading) return <div className="p-4 text-center text-muted-foreground text-sm py-8">Loading...</div>;
+  if (loading) return <FormPageSkeleton sections={4} fieldsPerSection={3} />;
 
   return (
     <div className="animate-fade-in w-full max-w-2xl mx-auto overflow-x-hidden overflow-y-auto pb-8 px-3 sm:px-4 pt-4" style={{ maxWidth: '100vw' }}>
       <div className="flex items-center gap-2 mb-4">
-        <button onClick={() => navigate("/admin/exams")} className="p-2 hover:bg-accent rounded-lg">
-          <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-        </button>
         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <FileText className="h-5 w-5" /> {existingExam ? "Edit Exam" : "Create New Exam"}
         </h2>

@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Course, Video } from "@/types";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { toast } from "sonner";
 import { ImageUrlInput } from "@/components/ImageUrlInput";
-import { Film, CheckCircle, Radio } from "lucide-react";
+import { Film, CheckCircle } from "lucide-react";
 
 export default function AdminAddVideoPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -17,7 +17,7 @@ export default function AdminAddVideoPage() {
   const [thumbnail, setThumbnail] = useState("");
   const [videoURL, setVideoURL] = useState("");
   const [pdfURL, setPdfURL] = useState("");
-  const [isLive, setIsLive] = useState(false);
+  
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -61,7 +61,7 @@ export default function AdminAddVideoPage() {
         thumbnail,
         videoURL,
         pdfURL,
-        isLive,
+        
         order: maxOrder + 1,
         createdAt: Timestamp.now(),
       });
@@ -74,9 +74,10 @@ export default function AdminAddVideoPage() {
       setVideoURL("");
       setPdfURL("");
       setChapterId("");
-      setIsLive(false);
+      
 
       invalidateCache("videos");
+      await bumpVersion(db, "videos");
       const freshVideos = await getCachedCollection<Video>(db, "videos");
       setVideos(freshVideos);
     } catch (err: any) {
@@ -212,47 +213,6 @@ export default function AdminAddVideoPage() {
               />
             </div>
 
-            {/* ── Live Video Toggle ── */}
-            <div
-              onClick={() => setIsLive((prev) => !prev)}
-              className={`flex items-center justify-between px-4 py-3 rounded-lg border cursor-pointer transition-all select-none ${
-                isLive
-                  ? "bg-red-500/10 border-red-500/40"
-                  : "bg-background border-border hover:bg-accent/40"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Radio
-                  className={`h-4 w-4 ${isLive ? "text-red-500" : "text-muted-foreground"}`}
-                />
-                <div>
-                  <p
-                    className={`text-sm font-medium ${
-                      isLive ? "text-red-500" : "text-foreground"
-                    }`}
-                  >
-                    Live Class
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {isLive
-                      ? "Students will see a LIVE indicator"
-                      : "Mark this video as a live class"}
-                  </p>
-                </div>
-              </div>
-              {/* Toggle pill */}
-              <div
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                  isLive ? "bg-red-500" : "bg-muted"
-                }`}
-              >
-                <div
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                    isLive ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </div>
-            </div>
           </div>
         </div>
 

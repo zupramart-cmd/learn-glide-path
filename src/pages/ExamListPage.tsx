@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import { examDb } from "@/lib/examFirebase";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { Exam, ExamSubmission } from "@/types/exam";
+import { Exam } from "@/types/exam";
+import { Course } from "@/types";
 import { getCachedCollection } from "@/lib/firestoreCache";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Clock, CheckCircle, Timer, Zap, Send, Trophy, BookOpen,
+  Clock, CheckCircle, Timer, Zap, Send, Trophy, BookOpen, Lock, XCircle,
 } from "lucide-react";
 import { FloatingButtons } from "@/components/FloatingButtons";
+import { ExamListSkeleton } from "@/components/skeletons";
 
 // ─── Status type ──────────────────────────────────────────────────────────────
 type ExamStatus =
@@ -69,6 +72,7 @@ export default function ExamListPage() {
   const navigate = useNavigate();
   const [exams, setExams] = useState<Exam[]>([]);
   const [examsLoading, setExamsLoading] = useState(true);
+  const [activeCourseExpired, setActiveCourseExpired] = useState(false);
   // Map of examId → whether this user has submitted
   const [submittedIds, setSubmittedIds] = useState<Set<string>>(new Set());
 
@@ -82,6 +86,13 @@ export default function ExamListPage() {
 
     const fetchExams = async () => {
       setExamsLoading(true);
+
+      // ── Check if active course is expired (isActive === false) ────────────
+      const allCourses = await getCachedCollection<Course>(db, "courses");
+      const activeCourse = allCourses.find(c => c.id === userDoc.activeCourseId);
+      const isExpired = activeCourse && (activeCourse as any).isActive === false;
+      setActiveCourseExpired(!!isExpired);
+      if (isExpired) { setExamsLoading(false); return; }
 
       const list = await getCachedCollection<Exam>(
         examDb,
@@ -118,16 +129,13 @@ export default function ExamListPage() {
         } catch { /* localStorage full */ }
       });
 
-      // ── Check which ended/live exams this user has submitted ─────────────
-      // 1) Fast path: check localStorage backup first (zero Firestore reads)
-      const endedOrLive = list.filter(e => {
-        const end = e.endTime?.toMillis?.() || 0;
-        const start = e.startTime?.toMillis?.() || 0;
-        return end >= nowMs || start <= nowMs; // live or already started
-      });
-
+      // ── Check which exams this user has submitted ────────────────────────
+      // ✅ Zero Firestore reads — uses pre-stored `submittedExamIds` on userDoc
+      //    plus the localStorage backup as a fallback. The user doc is loaded
+      //    by AuthContext, so we incur no extra read here.
+      const submittedFromUserDoc = new Set<string>(userDoc?.submittedExamIds || []);
       const locallySubmitted = new Set<string>();
-      endedOrLive.forEach(exam => {
+      list.forEach(exam => {
         const backupKey = `submission_backup_${exam.id}_${user.uid}`;
         try {
           const raw = localStorage.getItem(backupKey);
@@ -137,38 +145,11 @@ export default function ExamListPage() {
           }
         } catch { /* ignore */ }
       });
-      if (locallySubmitted.size > 0) {
-        setSubmittedIds(prev => new Set([...prev, ...locallySubmitted]));
-      }
-
-      // 2) Slow path: verify against Firestore for all ended exams via chunked "in" queries
-      const endedExams = list.filter(e => (e.endTime?.toMillis?.() || 0) < nowMs);
-      if (endedExams.length === 0) return;
-
-      const examIds = endedExams.map(e => e.id);
-      const firestoreSubmitted = new Set<string>();
-      // Firestore "in" supports up to 10 values
-      for (let i = 0; i < examIds.length; i += 10) {
-        const chunk = examIds.slice(i, i + 10);
-        try {
-          const snap = await getDocs(query(
-            collection(examDb, "submissions"),
-            where("userId", "==", user.uid),
-            where("examId", "in", chunk),
-          ));
-          snap.docs.forEach(d => {
-            const examId = (d.data() as any).examId as string;
-            if (examId) firestoreSubmitted.add(examId);
-          });
-        } catch { /* ignore */ }
-      }
-      if (firestoreSubmitted.size > 0) {
-        setSubmittedIds(prev => new Set([...prev, ...firestoreSubmitted]));
-      }
+      setSubmittedIds(new Set([...submittedFromUserDoc, ...locallySubmitted]));
     };
 
     fetchExams();
-  }, [userDoc?.activeCourseId, user]);
+  }, [userDoc?.activeCourseId, user, userDoc?.submittedExamIds]);
 
   // Show nothing while auth is still initializing or redirecting
   if (loading || !user || !userDoc) return null;
@@ -179,6 +160,28 @@ export default function ExamListPage() {
         <p className="text-muted-foreground text-sm py-8">
           Please select an active course from your profile to view exams.
         </p>
+      </div>
+    );
+  }
+
+  if (activeCourseExpired) {
+    return (
+      <div className="p-4 max-w-2xl mx-auto animate-fade-in">
+        <h1 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+          <BookOpen className="h-5 w-5" /> Exams
+        </h1>
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <Lock className="h-8 w-8 text-destructive" />
+          </div>
+          <div className="text-center">
+            <p className="text-base font-bold text-destructive mb-1">Course Expired</p>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              এই কোর্সটি expired হয়ে গেছে। পরীক্ষায় আর অ্যাক্সেস নেই।
+            </p>
+          </div>
+        </div>
+        <FloatingButtons />
       </div>
     );
   }
@@ -209,7 +212,7 @@ export default function ExamListPage() {
       </h1>
 
       {examsLoading ? (
-        <p className="text-muted-foreground text-sm text-center py-8">Loading...</p>
+        <ExamListSkeleton count={4} />
       ) : exams.length === 0 ? (
         <p className="text-muted-foreground text-sm text-center py-8">
           No exams available for this course.

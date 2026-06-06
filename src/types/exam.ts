@@ -25,7 +25,16 @@ export interface Exam {
   title: string;
   questions: ExamQuestion[];
   resultPublished?: boolean;
+  rankings?: ExamRankingEntry[];
+  totalParticipants?: number;
+  rankingsComputedAt?: Timestamp;
   createdAt: Timestamp;
+}
+
+export interface ExamRankingEntry {
+  userId: string;
+  obtainedMarks: number;
+  rank: number;
 }
 
 export interface ExamSubmission {

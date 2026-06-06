@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import {
   Users, Clock, BookOpen, Video, Youtube,
   HardDrive, FileText, TrendingUp, ArrowUpRight,
-  LayoutDashboard,
+  LayoutDashboard, Plus,
 } from "lucide-react";
 import { AdminDashboardSkeleton } from "@/components/skeletons/AdminSkeleton";
 import { getCachedCollection } from "@/lib/firestoreCache";
@@ -206,6 +206,37 @@ export default function AdminDashboard() {
                     {card.label}
                   </p>
                 </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Quick Actions (desktop / tablet only) ── */}
+        <div className="hidden md:block">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            Quick Actions
+          </p>
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            {[
+              { label: "Add Course", to: "/admin/courses?add=true", icon: BookOpen, color: "text-emerald-500", bg: "bg-emerald-500/10", hoverBorder: "hover:border-emerald-500/30" },
+              { label: "Add Video", to: "/admin/videos/add", icon: Video, color: "text-violet-500", bg: "bg-violet-500/10", hoverBorder: "hover:border-violet-500/30" },
+              { label: "Add Exam", to: "/admin/exams/add", icon: FileText, color: "text-rose-500", bg: "bg-rose-500/10", hoverBorder: "hover:border-rose-500/30" },
+            ].map((card) => (
+              <Link
+                key={card.label}
+                to={card.to}
+                className={`group flex items-center gap-3 p-4 lg:p-5 rounded-2xl border border-border bg-card hover:shadow-sm transition-all duration-200 ${card.hoverBorder}`}
+              >
+                <div className={`p-2.5 rounded-xl ${card.bg} transition-transform duration-200 group-hover:scale-110`}>
+                  <Plus className={`h-4 w-4 sm:h-5 sm:w-5 ${card.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{card.label}</p>
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <card.icon className="h-3 w-3" /> Create new
+                  </p>
+                </div>
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
             ))}
           </div>

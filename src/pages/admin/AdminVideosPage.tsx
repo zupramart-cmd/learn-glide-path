@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Video, Course } from "@/types";
-import { getCachedCollection, invalidateCache } from "@/lib/firestoreCache";
+import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, Film, Filter } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -87,6 +87,7 @@ export default function AdminVideosPage() {
         await addDoc(collection(db, "videos"), data);
         toast.success("Video added");
       }
+      await bumpVersion(db, "videos");
       setShowForm(false); resetForm(); fetchData(true);
     } catch (err: any) { toast.error(err.message); }
     setSubmitting(false);
@@ -95,6 +96,7 @@ export default function AdminVideosPage() {
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, "videos", id));
     invalidateCache("videos");
+    await bumpVersion(db, "videos");
     setVideos(prev => prev.filter(v => v.id !== id));
     toast.success("Video deleted");
   };
@@ -115,6 +117,7 @@ export default function AdminVideosPage() {
     await batch.commit();
 
     invalidateCache("videos");
+    await bumpVersion(db, "videos");
     setVideos(prev => {
       const next = prev.map(v => {
         if (v.id === a.id) return { ...v, order: orderB };
@@ -288,9 +291,9 @@ export default function AdminVideosPage() {
                 </button>
               </div>
               {v.thumbnail ? (
-                <img src={v.thumbnail} alt="" className="w-16 h-10 sm:w-20 sm:h-12 rounded-lg object-cover flex-shrink-0" />
+                <img src={v.thumbnail} alt="" className="w-24 sm:w-28 aspect-video rounded-lg object-cover flex-shrink-0" />
               ) : (
-                <div className="w-16 h-10 sm:w-20 sm:h-12 bg-muted rounded-lg flex-shrink-0 flex items-center justify-center">
+                <div className="w-24 sm:w-28 aspect-video bg-muted rounded-lg flex-shrink-0 flex items-center justify-center">
                   <Film className="h-4 w-4 text-muted-foreground/40" />
                 </div>
               )}

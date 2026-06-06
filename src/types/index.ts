@@ -22,6 +22,8 @@ export interface UserDoc {
   enrolledCourses: EnrolledCourse[];
   activeCourseId: string;
   paymentInfo: PaymentInfo;
+  /** Pre-stored list of exam IDs the user has submitted — eliminates per-user submissions queries. */
+  submittedExamIds?: string[];
   createdAt: Timestamp;
 }
 
@@ -75,7 +77,6 @@ export interface Video {
   videoURL: string;
   pdfURL: string;
   order: number;
-  isLive?: boolean;
   createdAt: Timestamp;
 }
 

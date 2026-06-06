@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { invalidateCache } from "@/lib/firestoreCache";
+import { invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { PaymentMethod, SocialLink, UsefulLink } from "@/types";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export default function AdminSettingsPage() {
       toast.success("Settings saved");
       // Clear settings cache so changes reflect immediately
       invalidateCache("settings");
+      await bumpVersion(db, "settings");
     } catch (err: any) {
       toast.error(err.message);
     }

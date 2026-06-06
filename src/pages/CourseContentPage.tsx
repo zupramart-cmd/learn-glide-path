@@ -84,7 +84,7 @@ export default function CourseContentPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((video) => (
             <button key={video.id} onClick={() => navigate(`/video/${video.id}`)} className="bg-card rounded-lg shadow-card overflow-hidden border border-border text-left">
-              {video.thumbnail ? <img src={video.thumbnail} alt={video.title} className="w-full h-36 object-cover" /> : <div className="w-full h-36 bg-muted" />}
+              {video.thumbnail ? <img src={video.thumbnail} alt={video.title} className="w-full aspect-video object-cover" /> : <div className="w-full aspect-video bg-muted" />}
               <div className="p-3">
                 <p className="text-sm font-medium text-foreground line-clamp-2">{video.title}</p>
                 <p className="text-xs text-muted-foreground mt-1">{settings.appName || "LMS"}</p>
