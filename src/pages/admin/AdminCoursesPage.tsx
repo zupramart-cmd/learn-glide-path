@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
 import { Course, Subject, Instructor, DiscussionGroup, Chapter } from "@/types";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronLeft, GripVertical, BookOpen, Users, MessageSquare, FileText, Link2, Image, PowerOff, Power } from "lucide-react";
+import { Plus, Edit, Trash2, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, GripVertical, BookOpen, Users, MessageSquare, FileText, Link2, Image, PowerOff, Power } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
