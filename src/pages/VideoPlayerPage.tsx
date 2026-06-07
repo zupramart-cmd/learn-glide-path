@@ -79,7 +79,7 @@ function ensureYTApi(cb: () => void) {
 export default function VideoPlayerPage() {
   const { videoId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userDoc } = useAuth();
   const settings = useAppSettings();
   const isMobile = useIsMobile();
   const [video, setVideo] = useState<Video | null>(null);
@@ -380,6 +380,25 @@ export default function VideoPlayerPage() {
     playerRef.current?.seekTo(t, true);
   }, []);
 
+  if (userDoc && userDoc.status !== "approved") {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20 max-w-md mx-auto">
+          <p className="text-foreground font-medium">No Access</p>
+          <p className="text-sm text-muted-foreground mt-1">আপনার enrollment approved নয় — content access নেই।</p>
+        </div>
+      </div>
+    );
+  }
+  if (video && userDoc && !userDoc.enrolledCourses?.some(c => c.courseId === video.courseId)) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20 max-w-md mx-auto">
+          <p className="text-foreground font-medium">এই কোর্সে enrolled নন</p>
+        </div>
+      </div>
+    );
+  }
   if (courseInactive) {
     return (
       <div className="p-4 text-center mt-8">

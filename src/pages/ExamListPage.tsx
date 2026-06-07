@@ -154,6 +154,23 @@ export default function ExamListPage() {
   // Show nothing while auth is still initializing or redirecting
   if (loading || !user || !userDoc) return null;
 
+  // Strict access check: pending / rejected / suspended → blocked everywhere
+  if (userDoc.status !== "approved") {
+    return (
+      <div className="p-4 max-w-md mx-auto animate-fade-in">
+        <div className="bg-card border border-destructive/30 rounded-2xl p-6 text-center mt-8">
+          <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+            <Lock className="h-7 w-7 text-destructive" />
+          </div>
+          <p className="text-base font-bold text-destructive">No Access</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            আপনার enrollment {userDoc.status === "pending" ? "pending" : userDoc.status === "rejected" ? "rejected" : "suspended"} — পরীক্ষায় অ্যাক্সেস নেই।
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!userDoc?.activeCourseId) {
     return (
       <div className="p-4 text-center">
