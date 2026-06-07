@@ -75,11 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserDoc(data);
       try { sessionStorage.setItem(userDocCacheKey(uid), JSON.stringify({ data, timestamp: Date.now() })); } catch {}
 
-      // Single-device enforcement
+      // Strict single-device enforcement
       const local = getLocalToken();
       const remote = data.sessionToken;
-      if (remote && local && remote !== local && pendingTokenWrite.current !== remote) {
-        forceLogout("Logged out: signed in on another device");
+      if (remote && pendingTokenWrite.current !== remote) {
+        // No local token but remote exists → this session never claimed a token (stale auth).
+        // OR local token differs → another device logged in.
+        if (!local || remote !== local) {
+          forceLogout("Logged out: signed in on another device");
+        }
       }
     });
   };
