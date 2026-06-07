@@ -14,7 +14,7 @@ import {
   Trash2, Edit, Eye, Plus, Download, Upload, Trophy,
   FileText, ChevronLeft, ChevronRight, Share2, Send, Undo2,
 } from "lucide-react";
-import { useExamAutoPublish } from "@/hooks/useExamAutoPublish";
+
 import { ImagePreviewDialog } from "@/components/ImagePreviewDialog";
 import { AdminListSkeleton, SubmissionListSkeleton } from "@/components/skeletons";
 import {
@@ -64,11 +64,8 @@ export default function AdminExamsPage() {
     fetchCourses();
   }, []);
 
-  // ─── Auto-publish: when an exam's endTime passes, publish + compute rankings ─
-  useExamAutoPublish(exams, async (exam) => {
-    if (exam.resultPublished) return;
-    await togglePublish(exam);
-  });
+  // Manual publish/unpublish only — admin is in full control.
+
 
   // ─── Delete: update local state instead of re-fetching ────────────────────
   const handleDelete = async (id: string) => {
