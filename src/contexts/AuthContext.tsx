@@ -21,6 +21,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshUserDoc: () => Promise<void>;
+  /** True only when account status === "approved". Use to block any course/exam/video access. */
+  hasAccess: boolean;
+  /** True if a specific courseId is in user's enrolled list AND status is approved. */
+  hasCourseAccess: (courseId?: string | null) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -71,11 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserDoc(data);
       try { sessionStorage.setItem(userDocCacheKey(uid), JSON.stringify({ data, timestamp: Date.now() })); } catch {}
 
-      // Single-device enforcement
+      // Strict single-device enforcement.
+      // Skip while a pending token write from this device hasn't echoed back yet.
       const local = getLocalToken();
       const remote = data.sessionToken;
-      if (remote && local && remote !== local && pendingTokenWrite.current !== remote) {
-        forceLogout("Logged out: signed in on another device");
+      const writingNow = pendingTokenWrite.current && pendingTokenWrite.current === local;
+      if (remote && !writingNow) {
+        if (!local || remote !== local) {
+          forceLogout("Logged out: signed in on another device");
+        }
       }
     });
   };
@@ -168,8 +176,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (snap.exists()) setUserDoc(snap.data() as UserDoc);
   };
 
+  const hasAccess = !!userDoc && userDoc.status === "approved";
+  const hasCourseAccess = (courseId?: string | null) => {
+    if (!hasAccess || !courseId) return false;
+    return !!userDoc!.enrolledCourses?.some(c => c.courseId === courseId);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, userDoc, loading, login, register, logout, resetPassword, refreshUserDoc }}>
+    <AuthContext.Provider value={{ user, userDoc, loading, login, register, logout, resetPassword, refreshUserDoc, hasAccess, hasCourseAccess }}>
       {children}
     </AuthContext.Provider>
   );

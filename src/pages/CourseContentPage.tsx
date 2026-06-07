@@ -49,6 +49,25 @@ export default function CourseContentPage() {
     fetch();
   }, [courseId, user]);
 
+  if (userDoc && userDoc.status !== "approved") {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">No Access</p>
+          <p className="text-sm text-muted-foreground mt-1">আপনার enrollment approved নয়।</p>
+        </div>
+      </div>
+    );
+  }
+  if (userDoc && courseId && !userDoc.enrolledCourses?.some(c => c.courseId === courseId)) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">এই কোর্সে enrolled নন</p>
+        </div>
+      </div>
+    );
+  }
   if (inactive) {
     return (
       <div className="p-4 text-center mt-8">

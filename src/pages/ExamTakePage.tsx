@@ -369,6 +369,42 @@ export default function ExamTakePage() {
 
   // ─── Loading / Not Found ──────────────────────────────────────────────────
   if (loading) return <div className="p-4 text-center text-muted-foreground text-sm py-8">Loading...</div>;
+
+  // Strict access guard — pending/rejected/suspended users cannot view exams
+  if (userDoc && userDoc.status !== "approved") {
+    return (
+      <div className="p-4 max-w-lg mx-auto animate-fade-in">
+        <button onClick={() => navigate("/exams")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <div className="bg-card border border-destructive/30 rounded-2xl p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+            <Lock className="h-7 w-7 text-destructive" />
+          </div>
+          <p className="text-base font-bold text-destructive">No Access</p>
+          <p className="text-sm text-muted-foreground mt-1">আপনার enrollment approved নয় — পরীক্ষায় অ্যাক্সেস বন্ধ।</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Course-level enrollment guard
+  if (exam && userDoc && !userDoc.enrolledCourses?.some(c => c.courseId === exam.courseId)) {
+    return (
+      <div className="p-4 max-w-lg mx-auto animate-fade-in">
+        <button onClick={() => navigate("/exams")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <div className="bg-card border border-destructive/30 rounded-2xl p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+            <Lock className="h-7 w-7 text-destructive" />
+          </div>
+          <p className="text-base font-bold text-destructive">এই কোর্সে enrolled নন</p>
+        </div>
+      </div>
+    );
+  }
+
   if (courseInactive) {
     return (
       <div className="p-4 max-w-lg mx-auto animate-fade-in">
