@@ -21,6 +21,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshUserDoc: () => Promise<void>;
+  /** True only when account status === "approved". Use to block any course/exam/video access. */
+  hasAccess: boolean;
+  /** True if a specific courseId is in user's enrolled list AND status is approved. */
+  hasCourseAccess: (courseId?: string | null) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
