@@ -38,6 +38,8 @@ export default function AdminCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(searchParams.get("add") === "true");
   const [editCourse, setEditCourse] = useState<Course | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const [courseName, setCourseName] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
@@ -310,7 +312,9 @@ export default function AdminCoursesPage() {
       </div>
 
       <div className="space-y-2.5">
-        {courses.map((c, idx) => (
+        {courses.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((c, localIdx) => {
+          const idx = (currentPage - 1) * PAGE_SIZE + localIdx;
+          return (
           <div key={c.id} className="p-3 bg-card rounded-xl border border-border flex gap-3 items-center hover:border-primary/20 transition-colors">
             <div className="flex flex-col gap-0.5 flex-shrink-0">
               <button onClick={() => moveCourse(idx, "up")} disabled={idx === 0} className="p-1 rounded-lg hover:bg-accent disabled:opacity-20 transition-colors">
@@ -383,8 +387,25 @@ export default function AdminCoursesPage() {
               </AlertDialog>
             </div>
           </div>
-        ))}
+        );})}
       </div>
+
+      {courses.length > PAGE_SIZE && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+            className="p-2 rounded-lg bg-card border border-border disabled:opacity-30">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm text-muted-foreground">
+            {currentPage} / {Math.ceil(courses.length / PAGE_SIZE)}
+          </span>
+          <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(courses.length / PAGE_SIZE), p + 1))}
+            disabled={currentPage >= Math.ceil(courses.length / PAGE_SIZE)}
+            className="p-2 rounded-lg bg-card border border-border disabled:opacity-30">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
