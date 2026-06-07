@@ -172,8 +172,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (snap.exists()) setUserDoc(snap.data() as UserDoc);
   };
 
+  const hasAccess = !!userDoc && userDoc.status === "approved";
+  const hasCourseAccess = (courseId?: string | null) => {
+    if (!hasAccess || !courseId) return false;
+    return !!userDoc!.enrolledCourses?.some(c => c.courseId === courseId);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, userDoc, loading, login, register, logout, resetPassword, refreshUserDoc }}>
+    <AuthContext.Provider value={{ user, userDoc, loading, login, register, logout, resetPassword, refreshUserDoc, hasAccess, hasCourseAccess }}>
       {children}
     </AuthContext.Provider>
   );
