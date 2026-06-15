@@ -1,0 +1,117 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { getCachedDoc, getCachedCollection } from "@/lib/firestoreCache";
+import { useAuth } from "@/contexts/AuthContext";
+import { Video, Course } from "@/types";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import { VideoGridSkeleton } from "@/components/skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function CourseContentPage() {
+  const { courseId } = useParams();
+  const { user, userDoc } = useAuth();
+  const navigate = useNavigate();
+  const settings = useAppSettings();
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [course, setCourse] = useState<Course | null>(null);
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [activeSubject, setActiveSubject] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [inactive, setInactive] = useState(false);
+
+  useEffect(() => {
+    if (!user) { navigate("/auth?mode=login"); return; }
+    const fetch = async () => {
+      if (!courseId) return;
+      const courseData = await getCachedDoc<Course>(db, "courses", courseId);
+      if (courseData) {
+        setCourse(courseData);
+        if ((courseData as any).isActive === false) {
+          setInactive(true);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const vids = await getCachedCollection<Video>(
+        db,
+        "videos",
+        [where("courseId", "==", courseId)],
+        `course_${courseId}`,
+      );
+      vids.sort((a, b) => (a.order || 0) - (b.order || 0));
+      setVideos(vids);
+      setSubjects([...new Set(vids.map((v) => v.subjectName))] as string[]);
+      setLoading(false);
+    };
+    fetch();
+  }, [courseId, user]);
+
+  if (userDoc && userDoc.status !== "approved") {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">No Access</p>
+          <p className="text-sm text-muted-foreground mt-1">আপনার enrollment approved নয়।</p>
+        </div>
+      </div>
+    );
+  }
+  if (userDoc && courseId && !userDoc.enrolledCourses?.some(c => c.courseId === courseId)) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">এই কোর্সে enrolled নন</p>
+        </div>
+      </div>
+    );
+  }
+  if (inactive) {
+    return (
+      <div className="p-4 text-center mt-8">
+        <div className="p-6 bg-destructive/10 rounded-lg border border-destructive/20">
+          <p className="text-foreground font-medium">Course Expired</p>
+          <p className="text-sm text-muted-foreground mt-1">This course is no longer available.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="p-4"><Skeleton className="h-6 w-48 mb-3" /><div className="flex gap-2 pb-3">{Array.from({length:4}).map((_,i)=><Skeleton key={i} className="h-8 w-20 rounded-full" />)}</div><VideoGridSkeleton count={6} /></div>;
+  }
+
+
+  const filtered = activeSubject === "All" ? videos : videos.filter((v) => v.subjectName === activeSubject);
+
+  return (
+    <div className="p-4 animate-fade-in">
+      {course && <h2 className="text-lg font-semibold text-foreground mb-3">{course.courseName}</h2>}
+      
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3">
+        <button onClick={() => setActiveSubject("All")} className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium ${activeSubject === "All" ? "bg-primary text-primary-foreground" : "bg-card border border-border text-foreground"}`}>All</button>
+        {subjects.map((sub) => (
+          <button key={sub} onClick={() => setActiveSubject(sub)} className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap font-medium ${activeSubject === sub ? "bg-primary text-primary-foreground" : "bg-card border border-border text-foreground"}`}>{sub}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8">No videos found.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((video) => (
+            <button key={video.id} onClick={() => navigate(`/video/${video.id}`)} className="bg-card rounded-lg shadow-card overflow-hidden border border-border text-left">
+              {video.thumbnail ? <img src={video.thumbnail} alt={video.title} className="w-full aspect-video object-cover" /> : <div className="w-full aspect-video bg-muted" />}
+              <div className="p-3">
+                <p className="text-sm font-medium text-foreground line-clamp-2">{video.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{settings.appName || "LMS"}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
