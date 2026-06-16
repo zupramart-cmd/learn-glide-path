@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── EXAMS ─────────────────────────────────────────────
+    // Read open — students দেখবে
+    // Write open কিন্তু basic structure validate করা
+    // Delete blocked — দুর্ঘটনাবশত পরীক্ষা মুছে যাবে না
+    match /exams/{examId} {
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasAll(
+                        ['title','courseId','questions','duration','totalMarks','startTime','endTime']
+                      )
+                    && request.resource.data.title is string
+                    && request.resource.data.courseId is string
+                    && request.resource.data.duration is number
+                    && request.resource.data.questions is list;
+
+      // Update allowed (admin panel থেকে edit, ranking compute, result publish)
+      allow update: if request.resource.data.courseId == resource.data.courseId;
+
+      // Delete blocked — চাইলে Firebase console থেকে manually করতে হবে
+      allow delete: if false;
+    }
+
+    // ── SUBMISSIONS (immutable after create) ──────────────
+    match /submissions/{submissionId} {
+      allow read: if true;  // ranking + admin দেখার জন্য
+
+      allow create: if request.resource.data.keys().hasAll(
+                        ['examId','userId','submittedAt','obtainedMarks','totalMarks']
+                      )
+                    && request.resource.data.userId is string
+                    && request.resource.data.examId is string
+                    && request.resource.data.obtainedMarks is number;
+
+      // Submission immutable — মার্কস, answers কিছুই বদলানো যাবে না
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── EXAM ENTRIES (one-time write per student per exam) ─
+    // Key format: `${examId}_${userId}` — duplicate prevent
+    match /examEntries/{entryId} {
+      allow read: if true;
+      allow create: if !exists(/databases/$(database)/documents/examEntries/$(entryId))
+                    && request.resource.data.examId is string
+                    && request.resource.data.userId is string;
+      allow update, delete: if false;
+    }
+
+    // ── EXAM COUNTERS (optional counters) ─────────────────
+    match /examCounters/{examId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Default deny ──────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
