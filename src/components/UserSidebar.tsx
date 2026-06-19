@@ -192,7 +192,7 @@ function SidebarContent({ onItemClick, compact = false }: { onItemClick?: () => 
       )}
 
       <div className="my-3 border-t border-border" />
-      <a href="https://ridoan-zisan.netlify.app" target="_blank" rel="noopener noreferrer" onClick={handleClick}
+      <a href="/developer.html" target="_blank" rel="noopener noreferrer" onClick={handleClick}
         className={`flex items-center gap-3 px-3 ${py} rounded-lg text-sm text-muted-foreground hover:bg-accent/80 transition-colors w-full my-0.5`}>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
           <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />

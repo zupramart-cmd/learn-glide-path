@@ -1,6 +1,7 @@
 import {
   collection, getDocs, getDoc, doc, setDoc, query, where,
   QueryConstraint, Firestore, serverTimestamp, Timestamp,
+  DocumentSnapshot, limit, startAfter, orderBy,
 } from "firebase/firestore";
 
 interface CacheEntry<T = any> {
@@ -241,4 +242,52 @@ export function invalidateCache(collectionName?: string): void {
 
 export function prewarmCache(dbInstance: Firestore, collections: string[]): void {
   collections.forEach(c => { getCachedCollection(dbInstance, c).catch(() => {}); });
+}
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+
+export interface PaginatedResult<T> {
+  data: T[];
+  /** Pass to the next call as `startAfterDoc` to get the next page. */
+  lastDoc: DocumentSnapshot | null;
+  hasMore: boolean;
+}
+
+/**
+ * Fetch a page of documents with cursor-based pagination.
+ * Does NOT use the TTL cache — always hits Firestore so cursors stay consistent.
+ *
+ * @param constraints   Additional where() / orderBy() clauses (do NOT add limit).
+ * @param startAfterDoc Cursor from a previous call's `lastDoc`.
+ *
+ * Example:
+ *   const page1 = await getPaginatedCollection<User>(db, "users", 20, [
+ *     where("role", "==", "student"),
+ *     orderBy("createdAt", "desc"),
+ *   ]);
+ *   const page2 = await getPaginatedCollection<User>(db, "users", 20, [
+ *     where("role", "==", "student"),
+ *     orderBy("createdAt", "desc"),
+ *   ], page1.lastDoc);
+ */
+export async function getPaginatedCollection<T extends { id: string }>(
+  dbInstance: Firestore,
+  collectionName: string,
+  pageSize: number,
+  constraints: QueryConstraint[] = [],
+  startAfterDoc?: DocumentSnapshot | null,
+): Promise<PaginatedResult<T>> {
+  const allConstraints: QueryConstraint[] = [
+    ...constraints,
+    limit(pageSize + 1),                                  // +1 to detect hasMore
+    ...(startAfterDoc ? [startAfter(startAfterDoc)] : []),
+  ];
+  const snap = await getDocs(query(collection(dbInstance, collectionName), ...allConstraints));
+  const hasMore = snap.docs.length > pageSize;
+  const pageDocs = snap.docs.slice(0, pageSize);
+  return {
+    data   : pageDocs.map(d => ({ id: d.id, ...d.data() } as T)),
+    lastDoc: pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null,
+    hasMore,
+  };
 }

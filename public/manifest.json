@@ -1,8 +1,10 @@
 {
-  "name": "Darpan Academy",
+  "name": "Darpan Academy — দর্পণ একাডেমি",
   "short_name": "Darpan Academy",
-  "description": "Darpan Academy - Your Learning Platform",
+  "description": "অনলাইন কোর্স, লাইভ ক্লাস ও পরীক্ষা — বাংলাদেশী শিক্ষার্থীদের জন্য।",
+  "lang": "bn",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",

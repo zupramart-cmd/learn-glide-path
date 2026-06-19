@@ -4,11 +4,12 @@ import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { Link } from "react-router-dom";
 import {
   Users, Clock, BookOpen, Video, Youtube,
-  HardDrive, FileText, TrendingUp, ArrowUpRight,
+  HardDrive, FileText, ArrowUpRight,
   LayoutDashboard, Plus,
 } from "lucide-react";
 import { AdminDashboardSkeleton } from "@/components/skeletons";
 import { getCachedCollection } from "@/lib/firestoreCache";
+import { getStats, initStats } from "@/lib/statsUtils";
 
 export default function AdminDashboard() {
   const settings = useAppSettings();
@@ -18,7 +19,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch main db collections
+        // ── Fast path: single doc read ─────────────────────────────────────
+        const cached = await getStats(db);
+
+        if (cached) {
+          setStats({
+            users  : cached.totalStudents,
+            pending: cached.pendingCount,
+            courses: cached.totalCourses,
+            videos : cached.totalVideos,
+            exams  : cached.totalExams,
+          });
+          setLoading(false);
+          return;                    // ← 1 Firestore read total, done
+        }
+
+        // ── Slow path (first ever run): full collection fetch → seed doc ───
         const [allUsers, coursesData, videosData, enrollRequestsData] = await Promise.all([
           getCachedCollection<any>(db, "users"),
           getCachedCollection<any>(db, "courses"),
@@ -26,7 +42,6 @@ export default function AdminDashboard() {
           getCachedCollection<any>(db, "enrollRequests"),
         ]);
 
-        // Fetch exams from examDb separately to isolate any failure
         let examsCount = 0;
         try {
           const { examDb } = await import("@/lib/examFirebase");
@@ -34,25 +49,37 @@ export default function AdminDashboard() {
           examsCount = examsData.length;
         } catch (examErr) {
           console.error("Error fetching exams for dashboard:", examErr);
-          // Continue with 0 — don't block the whole dashboard
         }
 
         const students = allUsers.filter((u: any) => u.role === "student");
-        const pendingUsers = allUsers.filter((u: any) => u.status === "pending" && u.role === "student");
         const pendingRequestUserIds = new Set(
-          enrollRequestsData.filter((r: any) => r.status === "pending").map((d: any) => d.userId)
+          enrollRequestsData
+            .filter((r: any) => r.status === "pending")
+            .map((d: any) => d.userId),
         );
-        const approvedWithPending = allUsers.filter(
-          (u: any) => u.role === "student" && u.status !== "pending" && pendingRequestUserIds.has(u.id)
+        const pendingUsers = students.filter((u: any) => u.status === "pending");
+        const approvedWithPending = students.filter(
+          (u: any) => u.status !== "pending" && pendingRequestUserIds.has(u.id),
         );
         const pendingCount = pendingUsers.length + approvedWithPending.length;
 
-        setStats({
-          users: students.length,
+        const derived = {
+          users  : students.length,
           pending: pendingCount,
           courses: coursesData.length,
-          videos: videosData.length,
-          exams: examsCount,
+          videos : videosData.length,
+          exams  : examsCount,
+        };
+
+        setStats(derived);
+
+        // Seed the stats doc so future loads hit the fast path
+        initStats(db, {
+          totalStudents: derived.users,
+          pendingCount : derived.pending,
+          totalCourses : derived.courses,
+          totalVideos  : derived.videos,
+          totalExams   : derived.exams,
         });
       } catch (err) {
         console.error("Error fetching dashboard stats:", err);
@@ -64,58 +91,60 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
+  // ─── Card definitions ─────────────────────────────────────────────────────
+
   const primaryCards = [
     {
-      label: "Total Students",
-      value: stats.users,
-      icon: Users,
-      to: "/admin/users",
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
+      label      : "Total Students",
+      value      : stats.users,
+      icon       : Users,
+      to         : "/admin/users",
+      color      : "text-blue-500",
+      bg         : "bg-blue-500/10",
+      border     : "border-blue-500/20",
       hoverBorder: "hover:border-blue-500/40",
-      hoverBg: "hover:bg-blue-500/5",
+      hoverBg    : "hover:bg-blue-500/5",
     },
     {
-      label: "Pending Approvals",
-      value: stats.pending,
-      icon: Clock,
-      to: "/admin/users?status=pending",
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/20",
+      label      : "Pending Approvals",
+      value      : stats.pending,
+      icon       : Clock,
+      to         : "/admin/users?status=pending",
+      color      : "text-amber-500",
+      bg         : "bg-amber-500/10",
+      border     : "border-amber-500/20",
       hoverBorder: "hover:border-amber-500/40",
-      hoverBg: "hover:bg-amber-500/5",
-      highlight: stats.pending > 0,
+      hoverBg    : "hover:bg-amber-500/5",
+      highlight  : stats.pending > 0,
     },
   ];
 
   const secondaryCards = [
     {
-      label: "Courses",
-      value: stats.courses,
-      icon: BookOpen,
-      to: "/admin/courses",
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
+      label      : "Courses",
+      value      : stats.courses,
+      icon       : BookOpen,
+      to         : "/admin/courses",
+      color      : "text-emerald-500",
+      bg         : "bg-emerald-500/10",
       hoverBorder: "hover:border-emerald-500/30",
     },
     {
-      label: "Videos",
-      value: stats.videos,
-      icon: Video,
-      to: "/admin/videos",
-      color: "text-violet-500",
-      bg: "bg-violet-500/10",
+      label      : "Videos",
+      value      : stats.videos,
+      icon       : Video,
+      to         : "/admin/videos",
+      color      : "text-violet-500",
+      bg         : "bg-violet-500/10",
       hoverBorder: "hover:border-violet-500/30",
     },
     {
-      label: "Exams",
-      value: stats.exams,
-      icon: FileText,
-      to: "/admin/exams",
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
+      label      : "Exams",
+      value      : stats.exams,
+      icon       : FileText,
+      to         : "/admin/exams",
+      color      : "text-rose-500",
+      bg         : "bg-rose-500/10",
       hoverBorder: "hover:border-rose-500/30",
     },
   ];
@@ -140,7 +169,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* ── Primary Stats ── */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {primaryCards.map((card) => (
             <Link
               key={card.label}
@@ -219,8 +248,8 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-3 gap-3 md:gap-4">
             {[
               { label: "Add Course", to: "/admin/courses/add", icon: BookOpen, color: "text-emerald-500", bg: "bg-emerald-500/10", hoverBorder: "hover:border-emerald-500/30" },
-              { label: "Add Video", to: "/admin/videos/add", icon: Video, color: "text-violet-500", bg: "bg-violet-500/10", hoverBorder: "hover:border-violet-500/30" },
-              { label: "Add Exam", to: "/admin/exams/add", icon: FileText, color: "text-rose-500", bg: "bg-rose-500/10", hoverBorder: "hover:border-rose-500/30" },
+              { label: "Add Video",  to: "/admin/videos/add",  icon: Video,    color: "text-violet-500",  bg: "bg-violet-500/10",  hoverBorder: "hover:border-violet-500/30" },
+              { label: "Add Exam",   to: "/admin/exams/add",   icon: FileText, color: "text-rose-500",    bg: "bg-rose-500/10",    hoverBorder: "hover:border-rose-500/30" },
             ].map((card) => (
               <Link
                 key={card.label}

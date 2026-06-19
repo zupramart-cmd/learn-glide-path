@@ -1,20 +1,47 @@
+/**
+ * AdminUsersPage — optimized read strategy
+ *
+ * Pending tab  → two targeted queries only:
+ *                 users     where status  == "pending"
+ *                 enrollRequests where status == "pending"
+ *               Total: 2 reads, returns only the small pending set.
+ *
+ * All / Approved / Rejected tabs → server-side cursor pagination:
+ *                 users     where role == "student"  limit(PAGE_SIZE)
+ *                 enrollRequests where userId in [pageUserIds]
+ *               "Load More" button advances the cursor.
+ *               Approved / Rejected are client-side filtered on the loaded set.
+ *
+ * On approve / reject:  incrementStats(db, { pendingCount: ±1 }) keeps the
+ *                       dashboard's single-doc counter in sync.
+ */
+
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { updateDoc, doc, Timestamp } from "firebase/firestore";
+import {
+  updateDoc, doc, Timestamp,
+  collection, getDocs, query, where, orderBy,
+  documentId, DocumentSnapshot,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { UserDoc, EnrollRequest, Course } from "@/types";
-import { getCachedCollection, invalidateCache, bumpVersion } from "@/lib/firestoreCache";
+import {
+  getCachedCollection, getPaginatedCollection,
+  invalidateCache, bumpVersion,
+} from "@/lib/firestoreCache";
+import { incrementStats } from "@/lib/statsUtils";
 import { toast } from "sonner";
 import {
   Check, X, Search, Users, BookOpen,
   Clock, CreditCard, ChevronRight, Receipt,
   AlertCircle, RefreshCw, UserCheck, UserX, Hourglass, Copy,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Loader2,
 } from "lucide-react";
 import { AdminListSkeleton } from "@/components/skeletons";
 
 interface UserWithId extends UserDoc { id: string; }
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
+
 const PAGE_SIZE = 20;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -41,57 +68,173 @@ function statusLabel(status: string) {
   return { approved: "Approved", pending: "Pending", rejected: "Rejected" }[status] ?? status;
 }
 
+/** Chunk an array into slices of `size` (for Firestore "in" limit of 30). */
+function chunks<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+}
+
 // ─── main component ─────────────────────────────────────────────────────────
 
 export default function AdminUsersPage() {
   const [searchParams] = useSearchParams();
+
   const [users, setUsers] = useState<UserWithId[]>([]);
   const [enrollRequests, setEnrollRequests] = useState<EnrollRequest[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
   const initialStatus = (searchParams.get("status") as StatusFilter) || "all";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    ["all", "pending", "approved", "rejected"].includes(initialStatus) ? initialStatus : "all"
+    ["all", "pending", "approved", "rejected"].includes(initialStatus) ? initialStatus : "all",
   );
   const [courseFilter, setCourseFilter] = useState("");
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ── fetch ──────────────────────────────────────────────────────────────────
+  // ── Courses (always loaded — small collection, needed for filter dropdown) ─
 
-  const fetchData = useCallback(async (silent = false) => {
+  const fetchCourses = useCallback(async () => {
+    const list = await getCachedCollection<Course>(db, "courses");
+    setCourses(list);
+  }, []);
+
+  // ── Pending-tab targeted query ─────────────────────────────────────────────
+  // 2 small reads:
+  //   (a) enrollRequests where status == "pending"
+  //   (b) users where status == "pending"   +  users whose IDs appear in (a)
+
+  const loadPendingData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    invalidateCache("users");
-    invalidateCache("enrollRequests");
     try {
-      const [usersData, requestsData, coursesData] = await Promise.all([
-        getCachedCollection<UserWithId>(db, "users"),
-        getCachedCollection<EnrollRequest>(db, "enrollRequests"),
-        getCachedCollection<Course>(db, "courses"),
-      ]);
-      setUsers(usersData);
-      setEnrollRequests(requestsData);
-      setCourses(coursesData);
+      // (a) pending enroll requests
+      const reqSnap = await getDocs(
+        query(collection(db, "enrollRequests"), where("status", "==", "pending")),
+      );
+      const pendingReqs = reqSnap.docs.map(d => ({ id: d.id, ...d.data() }) as EnrollRequest);
+
+      // (b1) users with pending account status
+      const acctSnap = await getDocs(
+        query(collection(db, "users"), where("status", "==", "pending"), where("role", "==", "student")),
+      );
+      const acctPendingUsers = acctSnap.docs.map(d => ({ id: d.id, ...d.data() }) as UserWithId);
+      const acctPendingIds   = new Set(acctPendingUsers.map(u => u.id));
+
+      // (b2) users with pending enroll requests but approved account
+      const pendingEnrollIds = [...new Set(pendingReqs.map(r => r.userId))].filter(
+        id => !acctPendingIds.has(id),
+      );
+
+      const enrollPendingUsers: UserWithId[] = [];
+      for (const chunk of chunks(pendingEnrollIds, 30)) {
+        const snap = await getDocs(
+          query(collection(db, "users"), where(documentId(), "in", chunk)),
+        );
+        snap.docs.forEach(d => enrollPendingUsers.push({ id: d.id, ...d.data() } as UserWithId));
+      }
+
+      setUsers([...acctPendingUsers, ...enrollPendingUsers]);
+      setEnrollRequests(pendingReqs);
+      setHasMore(false);
+      setLastDoc(null);
     } catch {
-      toast.error("Failed to load data");
+      toast.error("Failed to load pending data");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, []); // eslint-disable-line
+  // ── All-users paginated load ───────────────────────────────────────────────
+  // First page:  users limit(20) + their enrollRequests
+  // Load More:   next page cursor, appended to existing lists
 
-  // ── actions ────────────────────────────────────────────────────────────────
+  const loadPagedUsers = useCallback(async (cursor: DocumentSnapshot | null = null) => {
+    if (cursor) setLoadingMore(true);
+    else        setLoading(true);
 
-  const handleApproveRequest = async (reqId: string, userId: string, courseName: string, courseId: string) => {
+    try {
+      const { data: pageUsers, lastDoc: newLastDoc, hasMore: more } =
+        await getPaginatedCollection<UserWithId>(
+          db,
+          "users",
+          PAGE_SIZE,
+          [where("role", "==", "student"), orderBy("createdAt", "desc")],
+          cursor,
+        );
+
+      // Fetch enrollRequests only for the users on this page
+      const userIds = pageUsers.map(u => u.id);
+      const pageReqs: EnrollRequest[] = [];
+      for (const chunk of chunks(userIds, 30)) {
+        const snap = await getDocs(
+          query(collection(db, "enrollRequests"), where("userId", "in", chunk)),
+        );
+        snap.docs.forEach(d => pageReqs.push({ id: d.id, ...d.data() } as EnrollRequest));
+      }
+
+      if (cursor) {
+        setUsers(prev => [...prev, ...pageUsers]);
+        setEnrollRequests(prev => [...prev, ...pageReqs]);
+      } else {
+        setUsers(pageUsers);
+        setEnrollRequests(pageReqs);
+      }
+
+      setLastDoc(newLastDoc);
+      setHasMore(more);
+    } catch {
+      toast.error("Failed to load users");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  // ── Route initial load to the right strategy ───────────────────────────────
+
+  const refresh = useCallback(async (silent = false) => {
+    if (statusFilter === "pending") {
+      await loadPendingData(silent);
+    } else {
+      if (!silent) setLoading(true);
+      await loadPagedUsers(null);
+    }
+  }, [statusFilter, loadPendingData, loadPagedUsers]);
+
+  // Load courses once on mount
+  useEffect(() => { fetchCourses(); }, [fetchCourses]);
+
+  // Reload users whenever tab changes
+  useEffect(() => {
+    setUsers([]);
+    setEnrollRequests([]);
+    setLastDoc(null);
+    setHasMore(false);
+    setCurrentPage(1);
+    refresh();
+  }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const handleApproveRequest = async (
+    reqId: string,
+    userId: string,
+    courseName: string,
+    courseId: string,
+  ) => {
     if (actionLoading) return;
     setActionLoading(reqId);
     try {
       await updateDoc(doc(db, "enrollRequests", reqId), {
-        status: "approved",
+        status    : "approved",
         approvedAt: Timestamp.now(),
       });
 
@@ -101,12 +244,12 @@ export default function AdminUsersPage() {
 
       await updateDoc(doc(db, "users", userId), updates);
 
-      setEnrollRequests(prev => prev.map(r =>
-        r.id === reqId ? { ...r, status: "approved" } : r
-      ));
-      setUsers(prev => prev.map(u =>
-        u.id === userId ? { ...u, ...updates } as UserWithId : u
-      ));
+      // Keep dashboard stats in sync
+      await incrementStats(db, { pendingCount: -1 });
+
+      // Optimistic UI update
+      setEnrollRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: "approved" } : r));
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } as UserWithId : u));
 
       invalidateCache("users");
       invalidateCache("enrollRequests");
@@ -120,26 +263,30 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleRejectRequest = async (reqId: string, userId: string, courseName: string, courseId: string) => {
+  const handleRejectRequest = async (
+    reqId: string,
+    userId: string,
+    courseName: string,
+    courseId: string,
+  ) => {
     if (actionLoading) return;
     setActionLoading(reqId);
     try {
       await updateDoc(doc(db, "enrollRequests", reqId), {
-        status: "rejected",
+        status    : "rejected",
         rejectedAt: Timestamp.now(),
       });
 
       const otherApproved = enrollRequests.filter(
-        r => r.userId === userId && r.id !== reqId && r.status === "approved"
+        r => r.userId === userId && r.id !== reqId && r.status === "approved",
       );
       const userDoc = users.find(u => u.id === userId);
       const userUpdates: Record<string, any> = {};
 
       if (otherApproved.length === 0) userUpdates.status = "rejected";
       if (userDoc?.activeCourseId === courseId) {
-        const nextApproved = otherApproved[0];
-        userUpdates.activeCourseId = nextApproved
-          ? enrollRequests.find(r => r.id === nextApproved.id)?.courseId ?? ""
+        userUpdates.activeCourseId = otherApproved[0]
+          ? enrollRequests.find(r => r.id === otherApproved[0].id)?.courseId ?? ""
           : "";
       }
 
@@ -147,13 +294,13 @@ export default function AdminUsersPage() {
         await updateDoc(doc(db, "users", userId), userUpdates);
       }
 
-      setEnrollRequests(prev => prev.map(r =>
-        r.id === reqId ? { ...r, status: "rejected" } : r
-      ));
+      // Keep dashboard stats in sync
+      await incrementStats(db, { pendingCount: -1 });
+
+      // Optimistic UI update
+      setEnrollRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: "rejected" } : r));
       if (Object.keys(userUpdates).length > 0) {
-        setUsers(prev => prev.map(u =>
-          u.id === userId ? { ...u, ...userUpdates } as UserWithId : u
-        ));
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...userUpdates } as UserWithId : u));
       }
 
       invalidateCache("users");
@@ -168,22 +315,22 @@ export default function AdminUsersPage() {
     }
   };
 
-  // ── derived data ──────────────────────────────────────────────────────────
+  // ── Derived / client-side filter (within loaded set) ──────────────────────
 
   const getUserRequests = (userId: string) => enrollRequests.filter(r => r.userId === userId);
 
   const students = users.filter(u => u.role !== "admin");
 
   const statusCounts = {
-    all: students.length,
-    pending: students.filter(u =>
-      getUserRequests(u.id).some(r => r.status === "pending") || u.status === "pending"
+    all     : students.length,
+    pending : students.filter(u =>
+      getUserRequests(u.id).some(r => r.status === "pending") || u.status === "pending",
     ).length,
     approved: students.filter(u =>
-      getUserRequests(u.id).some(r => r.status === "approved") || u.status === "approved"
+      getUserRequests(u.id).some(r => r.status === "approved") || u.status === "approved",
     ).length,
     rejected: students.filter(u =>
-      getUserRequests(u.id).some(r => r.status === "rejected")
+      getUserRequests(u.id).some(r => r.status === "rejected"),
     ).length,
   };
 
@@ -194,13 +341,13 @@ export default function AdminUsersPage() {
       u.enrolledCourses?.some(c => c.courseName.toLowerCase().includes(search.toLowerCase()));
 
     const reqs = getUserRequests(u.id);
-    const matchStatus = statusFilter === "all"
+
+    // On pending tab, all loaded users are already pending → no extra filter needed
+    const matchStatus = statusFilter === "all" || statusFilter === "pending"
       ? true
-      : statusFilter === "pending"
-        ? reqs.some(r => r.status === "pending") || u.status === "pending"
-        : statusFilter === "approved"
-          ? reqs.some(r => r.status === "approved") || u.status === "approved"
-          : reqs.some(r => r.status === "rejected");
+      : statusFilter === "approved"
+        ? reqs.some(r => r.status === "approved") || u.status === "approved"
+        : reqs.some(r => r.status === "rejected");
 
     const matchCourse = !courseFilter
       || u.enrolledCourses?.some(c => c.courseId === courseFilter)
@@ -209,16 +356,15 @@ export default function AdminUsersPage() {
     return matchSearch && matchStatus && matchCourse;
   });
 
-  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, courseFilter]);
+  useEffect(() => { setCurrentPage(1); }, [search, courseFilter]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const totalPages     = Math.ceil(filtered.length / PAGE_SIZE);
   const paginatedUsers = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const toggleExpand = (userId: string) => {
     setExpandedUsers(prev => {
       const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
       return next;
     });
   };
@@ -236,7 +382,7 @@ export default function AdminUsersPage() {
           <span className="text-sm font-normal text-muted-foreground">({students.length})</span>
         </h2>
         <button
-          onClick={() => fetchData()}
+          onClick={() => refresh()}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg border border-border bg-card"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
@@ -269,10 +415,10 @@ export default function AdminUsersPage() {
       {/* Status tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
         {([
-          { key: "all",      label: "All",      Icon: Users },
+          { key: "all",      label: "All",      Icon: Users     },
           { key: "pending",  label: "Pending",  Icon: Hourglass },
           { key: "approved", label: "Approved", Icon: UserCheck },
-          { key: "rejected", label: "Rejected", Icon: UserX },
+          { key: "rejected", label: "Rejected", Icon: UserX     },
         ] as const).map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -290,7 +436,7 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {/* Student list with inline expand */}
+      {/* Student list */}
       <div className="space-y-2">
         {paginatedUsers.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
@@ -298,11 +444,11 @@ export default function AdminUsersPage() {
             <p className="text-sm">No students found</p>
           </div>
         ) : paginatedUsers.map(u => {
-          const reqs = getUserRequests(u.id);
+          const reqs         = getUserRequests(u.id);
           const pendingCount = reqs.filter(r => r.status === "pending").length;
           const rejectedCount = reqs.filter(r => r.status === "rejected").length;
           const dominantStatus = pendingCount > 0 ? "pending" : u.status;
-          const isExpanded = expandedUsers.has(u.id);
+          const isExpanded   = expandedUsers.has(u.id);
 
           return (
             <div
@@ -311,17 +457,15 @@ export default function AdminUsersPage() {
                 isExpanded ? "border-primary/40 shadow-sm" : "border-border"
               }`}
             >
-              {/* ── Collapsed row (always visible) ── */}
+              {/* ── Collapsed row ── */}
               <button
                 className="w-full text-left p-3 flex items-center gap-3 hover:bg-accent/40 transition-colors rounded-xl"
                 onClick={() => toggleExpand(u.id)}
               >
-                {/* Avatar */}
                 <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
                   {u.name?.[0]?.toUpperCase() || "U"}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-foreground text-sm truncate">{u.name}</p>
                   <div className="flex items-center gap-1">
@@ -352,7 +496,6 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Status badge + chevron */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium hidden sm:inline-flex ${statusBadge(dominantStatus)}`}>
                     {statusLabel(dominantStatus)}
@@ -363,17 +506,15 @@ export default function AdminUsersPage() {
                 </div>
               </button>
 
-              {/* ── Expanded panel (inline) ── */}
+              {/* ── Expanded panel ── */}
               {isExpanded && (
                 <div className="border-t border-border/60 px-3 pb-3 pt-2 space-y-2 animate-fade-in">
-
-                  {/* Enrollments */}
                   {u.enrolledCourses?.length > 0 ? (
                     <div className="space-y-2">
                       {u.enrolledCourses.map((c) => {
-                        const req = reqs.find(r => r.courseId === c.courseId);
+                        const req         = reqs.find(r => r.courseId === c.courseId);
                         const courseStatus = getCourseStatus(c.courseId, reqs);
-                        const isActive = c.courseId === u.activeCourseId;
+                        const isActive    = c.courseId === u.activeCourseId;
 
                         return (
                           <div
@@ -384,7 +525,6 @@ export default function AdminUsersPage() {
                               "border-destructive/30 bg-destructive/5"
                             }`}
                           >
-                            {/* Course info row */}
                             <div className="flex items-center gap-2 p-2.5">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -395,21 +535,19 @@ export default function AdminUsersPage() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <div className="flex items-center gap-2 mt-0.5">
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusBadge(courseStatus)}`}>
                                     {statusLabel(courseStatus)}
                                   </span>
                                 </div>
                               </div>
 
-                              {/* Approve / Reject buttons */}
                               <div className="flex gap-1.5 flex-shrink-0">
                                 {(courseStatus === "pending" || courseStatus === "rejected") && req && (
                                   <button
                                     onClick={() => handleApproveRequest(req.id, u.id, c.courseName, c.courseId)}
                                     disabled={!!actionLoading}
                                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-success/10 hover:bg-success/20 text-success text-xs font-medium transition-colors disabled:opacity-40"
-                                    title="Approve"
                                   >
                                     {actionLoading === req.id
                                       ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -422,7 +560,6 @@ export default function AdminUsersPage() {
                                     onClick={() => handleRejectRequest(req.id, u.id, c.courseName, c.courseId)}
                                     disabled={!!actionLoading}
                                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium transition-colors disabled:opacity-40"
-                                    title="Reject"
                                   >
                                     {actionLoading === req.id
                                       ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -433,12 +570,11 @@ export default function AdminUsersPage() {
                               </div>
                             </div>
 
-                            {/* Payment details row */}
                             {req && (
                               <div className="px-2.5 pb-2.5 pt-1.5 border-t border-border/40 grid grid-cols-2 gap-x-4 gap-y-1">
-                                <InfoCell label="Payment Method" value={req.paymentMethod} />
-                                <InfoCell label="Payment Number" value={req.paymentNumber} copyable />
-                                <InfoCell label="Transaction ID" value={req.transactionId} copyable fullWidth />
+                                <InfoCell label="Payment Method"  value={req.paymentMethod} />
+                                <InfoCell label="Payment Number"  value={req.paymentNumber} copyable />
+                                <InfoCell label="Transaction ID"  value={req.transactionId} copyable fullWidth />
                                 {req.createdAt && (
                                   <div className="col-span-2">
                                     <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1 mt-0.5">
@@ -460,13 +596,12 @@ export default function AdminUsersPage() {
                     <p className="text-xs text-muted-foreground text-center py-3">No courses enrolled</p>
                   )}
 
-                  {/* Legacy payment info */}
                   {u.paymentInfo?.method && !reqs.length && (
                     <div className="border-t border-border pt-2 grid grid-cols-2 gap-x-4 gap-y-1">
                       <p className="col-span-2 text-[11px] text-muted-foreground font-medium uppercase mb-1 flex items-center gap-1">
                         <CreditCard className="h-3 w-3" /> Payment Info (Legacy)
                       </p>
-                      <InfoCell label="Method" value={u.paymentInfo.method} />
+                      <InfoCell label="Method"         value={u.paymentInfo.method} />
                       <InfoCell label="Payment Number" value={u.paymentInfo.paymentNumber} copyable />
                       <InfoCell label="Transaction ID" value={u.paymentInfo.transactionId} copyable fullWidth />
                     </div>
@@ -478,7 +613,7 @@ export default function AdminUsersPage() {
         })}
       </div>
 
-      {/* Pagination */}
+      {/* Client-side page navigation (within loaded set) */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-4">
           <button
@@ -495,6 +630,22 @@ export default function AdminUsersPage() {
             className="p-2 rounded-lg bg-card border border-border disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Server-side "Load More" (all / approved / rejected tabs only) */}
+      {hasMore && statusFilter !== "pending" && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => loadPagedUsers(lastDoc)}
+            disabled={loadingMore}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            {loadingMore
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <ChevronDown className="h-4 w-4" />}
+            {loadingMore ? "Loading…" : "Load more students"}
           </button>
         </div>
       )}
@@ -527,33 +678,6 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
-/** Quick-copy chip shown in the expanded header bar */
-function QuickCopy({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors border ${
-        copied
-          ? "bg-success/10 border-success/30 text-success"
-          : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/40"
-      }`}
-      title={`Copy ${label}`}
-    >
-      {copied ? <Check className="h-3 w-3" /> : icon}
-      <span className="max-w-[120px] truncate">{copied ? "Copied!" : value}</span>
-    </button>
-  );
-}
-
-/** Labelled info cell with optional copy button */
 function InfoCell({
   label, value, copyable, fullWidth,
 }: { label: string; value?: string; copyable?: boolean; fullWidth?: boolean }) {

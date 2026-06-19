@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { FloatingButtons } from "@/components/FloatingButtons";
 import { CourseGridSkeleton } from "@/components/skeletons";
 import { getCachedCollection } from "@/lib/firestoreCache";
+import { Seo } from "@/components/Seo";
 
 export default function HomePage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -34,6 +35,22 @@ export default function HomePage() {
 
   return (
     <div className="px-3 pt-4 sm:p-4">
+      <Seo
+        title="Darpan Academy | দর্পণ একাডেমি"
+        description="দর্পণ একাডেমির সকল অনলাইন কোর্স দেখুন — SSC, HSC, এডমিশন ও আরো। Browse all online courses offered by Darpan Academy."
+        path="/courses"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Darpan Academy Courses",
+          "itemListElement": courses.slice(0, 20).map((c, i) => ({
+            "@type": "ListItem",
+            "position": i + 1,
+            "url": `https://darpan-academy.netlify.app/course/${c.id}`,
+            "name": c.courseName,
+          })),
+        }}
+      />
       <h2 className="text-xl font-semibold text-foreground mb-4">
         All Courses
       </h2>

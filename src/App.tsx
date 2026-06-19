@@ -27,6 +27,11 @@ import ExamListPage from "@/pages/ExamListPage";
 import ExamTakePage from "@/pages/ExamTakePage";
 import AdminDataPage from "@/pages/admin/AdminDataPage";
 import NotFound from "@/pages/NotFound";
+import AboutPage from "@/pages/AboutPage";
+import ContactPage from "@/pages/ContactPage";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
+import TermsPage from "@/pages/TermsPage";
+import RefundPolicyPage from "@/pages/RefundPolicyPage";
 
 const App = () => (
   <>
@@ -49,6 +54,11 @@ const App = () => (
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/exams" element={<ExamListPage />} />
               <Route path="/exams/:examId" element={<ExamTakePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/refund" element={<RefundPolicyPage />} />
               <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboard /></ProtectedAdminRoute>} />
               <Route path="/admin/users" element={<ProtectedAdminRoute><AdminUsersPage /></ProtectedAdminRoute>} />
               <Route path="/admin/courses" element={<ProtectedAdminRoute><AdminCoursesPage /></ProtectedAdminRoute>} />

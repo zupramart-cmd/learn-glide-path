@@ -1,8 +1,29 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /profile
+Disallow: /content
+Disallow: /content/
+Disallow: /exams
+Disallow: /exams/
+Disallow: /video/
+Disallow: /auth
+
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /profile
+Disallow: /content
+Disallow: /exams
+Disallow: /video/
+Disallow: /auth
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin
+Disallow: /admin/
 
 User-agent: Twitterbot
 Allow: /
@@ -10,5 +31,4 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
-Allow: /
+Sitemap: https://darpan-academy.netlify.app/sitemap.xml
