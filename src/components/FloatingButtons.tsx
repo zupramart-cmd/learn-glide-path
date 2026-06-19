@@ -270,7 +270,7 @@ export function FloatingButtons() {
             id: idRef.current++,
             role: "bot",
             content: WELCOME_TEXT,
-            quickReplies: FAQS.slice(0, 6),
+            quickReplies: FAQS,
             timestamp: new Date(),
             animate: true,
           },
@@ -321,7 +321,7 @@ export function FloatingButtons() {
         });
       } else if (/হাই|hi|hello|হ্যালো|আসসালাম/i.test(text)) {
         const content = "ওয়ালাইকুম আসসালাম! 😊 নিচের যেকোনো প্রশ্নে ক্লিক করুন অথবা টাইপ করুন।";
-        pushMessage({ role: "bot", content, quickReplies: FAQS.slice(0, 6) });
+        pushMessage({ role: "bot", content, quickReplies: FAQS });
       } else if (/ধন্যবাদ|thanks|thank/i.test(text)) {
         pushMessage({ role: "bot", content: "আপনাকেও ধন্যবাদ! 🙏 আর কোনো প্রশ্ন থাকলে জানাবেন।" });
       } else {
